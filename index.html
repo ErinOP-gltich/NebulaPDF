@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NebulaPDF | Modern PDF Tools</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- Mammoth.js for DOCX support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#030305',
+                            card: '#0f0f16',
+                            accent: '#8b5cf6', // Violet-500
+                            glow: '#d8b4fe',   // Violet-200
+                            secondary: '#ec4899', // Pink-500
+                            text: '#e2e8f0'
+                        }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'blob': 'blob 7s infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #030305;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Background */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background: radial-gradient(circle at top left, #1e1b4b, transparent 40%),
+                        radial-gradient(circle at bottom right, #310b2a, transparent 40%);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #030305; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8b5cf6; 
+        }
+
+        .glass-panel {
+            background: rgba(15, 15, 22, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .tool-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .tool-card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(139, 92, 246, 0.3);
+            background: rgba(19, 19, 31, 0.8);
+            box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.2);
+        }
+
+        .tool-card:hover::before {
+            opacity: 1;
+        }
+
+        .tool-card:hover .icon-container {
+            transform: scale(1.1) rotate(5deg);
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #d946ef 100%);
+            background-size: 200% 200%;
+            animation: gradient-shift 3s ease infinite;
+            transition: all 0.3s ease;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50% }
+            50% { background-position: 100% 50% }
+            100% { background-position: 0% 50% }
+        }
+        .btn-primary:hover {
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .drag-active {
+            border-color: #8b5cf6 !important;
+            background-color: rgba(139, 92, 246, 0.1) !important;
+            transform: scale(1.01);
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-left-color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Featured Card Style */
+        .featured-card {
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            background: linear-gradient(145deg, rgba(19, 19, 31, 0.9), rgba(19, 19, 31, 0.6));
+        }
+        .featured-card:hover {
+            border-color: #8b5cf6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div class="ambient-bg"></div>
+
+    <!-- Navbar -->
+    <nav class="w-full h-20 border-b border-white/5 glass-panel sticky top-0 z-50">
+        <div class="container mx-auto px-6 h-full flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="showHome()">
+                <div class="w-10 h-10 bg-gradient-to-tr from-purple-600 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <i class="fas fa-layer-group text-white text-lg"></i>
+                </div>
+                <span class="text-2xl font-bold tracking-tight text-white">Nebula<span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400"> PDF</span></span>
+            </div>
+            <div class="hidden md:flex items-center space-x-6">
+                <button onclick="showHome()" class="text-gray-400 hover:text-white transition-colors text-sm font-medium focus:outline-none">Tools</button>
+                <button onclick="showAbout()" class="text-gray-400 hover:text-white transition-colors text-sm font-medium focus:outline-none">About</button>
+                <span class="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-400 border border-white/5">v2.1</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-16 relative z-10">
+        
+        <!-- View: Dashboard (Tool Selection) -->
+        <div id="dashboard-view" class="max-w-6xl mx-auto transition-all duration-500 ease-in-out">
+            <div class="text-center mb-20 relative">
+                <!-- Background Decoration -->
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[100px] -z-10 animate-pulse"></div>
+                
+                <h1 class="text-5xl md:text-6xl font-bold mb-6 tracking-tight text-white">
+                    Your Data. <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Your Control.</span>
+                </h1>
+                <p class="text-gray-400 text-lg max-w-2xl mx-auto font-light">
+                    Professional grade PDF tools running entirely in your browser.
+                    <br class="hidden md:block"/>Secure, private, and blazing fast.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Tool 1: Universal Converter (Reordered to First & Featured) -->
+                <div onclick="selectTool('any2pdf')" class="tool-card featured-card p-8 rounded-3xl cursor-pointer group md:col-span-3 lg:col-span-1 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-50">
+                        <i class="fas fa-star text-yellow-500 text-xs"></i> <span class="text-xs text-yellow-500 font-bold tracking-wider">NEW</span>
+                    </div>
+                    <div class="icon-container w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center mb-6 transition-transform duration-300 border border-white/5 shadow-inner">
+                        <i class="fas fa-magic text-2xl text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-pink-400"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-3 text-white">Universal Converter</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-4">The ultimate tool. Combine images, text, code, and <span class="text-pink-400 font-semibold">Word (.docx)</span> files into a single organized PDF.</p>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="px-2 py-1 rounded bg-white/5 border border-white/5 text-gray-400">.docx</span>
+                        <span class="px-2 py-1 rounded bg-white/5 border border-white/5 text-gray-400">.txt</span>
+                        <span class="px-2 py-1 rounded bg-white/5 border border-white/5 text-gray-400">Images</span>
+                        <span class="px-2 py-1 rounded bg-white/5 border border-white/5 text-gray-400">Code</span>
+                    </div>
+                </div>
+
+                <!-- Tool 2: Image to PDF -->
+                <div onclick="selectTool('img2pdf')" class="tool-card glass-panel p-8 rounded-3xl cursor-pointer group">
+                    <div class="icon-container w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-6 transition-transform duration-300 border border-white/5">
+                        <i class="fas fa-images text-xl text-blue-400"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-white">Images to PDF</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Convert JPGs, PNGs, and other image formats into a high-quality album.</p>
+                </div>
+
+                <!-- Tool 3: Merge PDF -->
+                <div onclick="selectTool('merge')" class="tool-card glass-panel p-8 rounded-3xl cursor-pointer group">
+                    <div class="icon-container w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-6 transition-transform duration-300 border border-white/5">
+                        <i class="fas fa-layer-group text-xl text-emerald-400"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-white">Merge PDFs</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">Stitch multiple PDF files together. Drag, drop, and rearrange order.</p>
+                </div>
+
+                <!-- Tool 4: Text to PDF -->
+                <div onclick="selectTool('text2pdf')" class="tool-card glass-panel p-8 rounded-3xl cursor-pointer group md:col-span-3 lg:col-span-3">
+                    <div class="flex flex-col md:flex-row items-start md:items-center md:gap-6">
+                        <div class="icon-container w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mb-4 md:mb-0 transition-transform duration-300 border border-white/5 shrink-0">
+                            <i class="fas fa-keyboard text-xl text-orange-400"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold mb-2 text-white">Quick Text / Note to PDF</h3>
+                            <p class="text-gray-400 text-sm leading-relaxed">A simple editor to type notes, copy-paste content, or save code snippets directly as a clean PDF document.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Tool Workspace (Hidden by default) -->
+        <div id="workspace-view" class="hidden max-w-4xl mx-auto animate-[fadeIn_0.4s_ease-out]">
+            <button onclick="showHome()" class="group mb-8 flex items-center text-gray-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-white/5">
+                <i class="fas fa-arrow-left mr-2 group-hover:-translate-x-1 transition-transform"></i> Back to Tools
+            </button>
+
+            <div class="glass-panel rounded-3xl p-8 md:p-12 border border-white/10 relative overflow-hidden">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-10 border-b border-white/10 pb-8">
+                    <div>
+                        <h2 id="tool-title" class="text-3xl font-bold text-white mb-2">Tool Name</h2>
+                        <p id="tool-desc" class="text-base text-gray-400">Tool description goes here.</p>
+                    </div>
+                    <div id="tool-icon" class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border border-white/10">
+                        <i class="fas fa-cogs text-pink-300"></i>
+                    </div>
+                </div>
+
+                <!-- Dynamic Content Area -->
+                <div id="tool-content" class="min-h-[300px]">
+                    <!-- Injected via JS -->
+                </div>
+
+                <!-- Action Bar -->
+                <div class="mt-10 pt-8 border-t border-white/10 flex justify-end space-x-4">
+                    <button onclick="resetTool()" class="px-6 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition-colors font-medium text-sm">Clear All</button>
+                    <button id="action-btn" class="btn-primary px-8 py-3 rounded-xl text-white font-bold text-sm flex items-center shadow-lg shadow-purple-900/50">
+                        <span>Convert</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: About (New) -->
+        <div id="about-view" class="hidden max-w-4xl mx-auto animate-[fadeIn_0.4s_ease-out]">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-white mb-4">About <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">NebulaPDF</span></h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">Redefining document management with a focus on privacy, speed, and design.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+                <div class="glass-panel p-8 rounded-3xl border border-white/10">
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6">
+                        <i class="fas fa-shield-alt text-purple-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Privacy First</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        Unlike other online converters, NebulaPDF processes your files <strong>100% in your browser</strong>. Your documents are never uploaded to a server, ensuring your sensitive data never leaves your device.
+                    </p>
+                </div>
+                <div class="glass-panel p-8 rounded-3xl border border-white/10">
+                    <div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center mb-6">
+                        <i class="fas fa-bolt text-pink-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Lightning Fast</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">
+                        Powered by WebAssembly and modern JavaScript libraries (jsPDF, pdf-lib, mammoth.js), conversions happen instantly without network latency or queue times.
+                    </p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-8 rounded-3xl border border-white/10 text-center">
+                <h3 class="text-lg font-bold text-white mb-6">Powered By Open Source, Made by Erin.</h3>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <span class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">Tailwind CSS</span>
+                    <span class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">jsPDF</span>
+                    <span class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">pdf-lib</span>
+                    <span class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">Mammoth.js</span>
+                    <span class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">FontAwesome</span>
+                </div>
+                <div class="mt-8">
+                    <button onclick="showHome()" class="btn-primary px-8 py-3 rounded-xl text-white font-bold text-sm shadow-lg shadow-purple-900/50">
+                        Start Converting
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 bg-[#030305]/80 backdrop-blur-md relative z-10 mt-auto">
+        <div class="container mx-auto px-6 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
+                <div class="col-span-1 md:col-span-2">
+                    <span class="text-2xl font-bold text-white">Nebula<span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400"> PDF</span></span>
+                    <p class="text-gray-500 text-sm mt-6 leading-relaxed max-w-sm">
+                        Engineered for privacy. Your documents are processed locally in your browser using WebAssembly technologies. No servers, no uploads, no waiting.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-6 tracking-wide text-sm uppercase">Quick Access</h4>
+                    <ul class="space-y-3 text-sm text-gray-400">
+                        <li><a href="#" onclick="selectTool('any2pdf')" class="hover:text-purple-400 transition-colors">Universal Converter</a></li>
+                        <li><a href="#" onclick="selectTool('img2pdf')" class="hover:text-purple-400 transition-colors">Images to PDF</a></li>
+                        <li><a href="#" onclick="selectTool('merge')" class="hover:text-purple-400 transition-colors">Merge Documents</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-white font-semibold mb-6 tracking-wide text-sm uppercase">Community</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:bg-purple-600 hover:text-white transition-all transform hover:-translate-y-1">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-white transition-all transform hover:-translate-y-1">
+                            <i class="fab fa-github"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-white/5 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
+                <p>&copy; 2025 NebulaPDF Suite. Open Source. Made by Erin.</p>
+                <div class="flex items-center space-x-2 mt-4 md:mt-0 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+                    <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                    <span class="text-green-500 font-medium">Client-Side Only</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-24 transition-transform duration-300 z-50">
+        <div class="glass-panel border-l-4 border-purple-500 px-6 py-4 rounded-r-xl shadow-2xl flex items-center">
+            <div class="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center mr-3">
+                <i class="fas fa-check text-purple-400 text-xs"></i>
+            </div>
+            <span id="toast-msg" class="text-white font-medium">Operation Successful</span>
+        </div>
+    </div>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" id="file-input-img" accept="image/*" multiple class="hidden">
+    <input type="file" id="file-input-pdf" accept="application/pdf" multiple class="hidden">
+    <!-- Updated accept attribute for DOCX -->
+    <input type="file" id="file-input-any" accept=".txt,.md,.csv,.json,.xml,.js,.css,.html,.log,.docx,image/*" multiple class="hidden">
+
+    <!-- Logic -->
+    <script>
+        // --- State Management ---
+        let currentTool = null;
+        let uploadedFiles = []; // Stores File objects
+
+        // --- DOM Elements ---
+        const views = {
+            dashboard: document.getElementById('dashboard-view'),
+            workspace: document.getElementById('workspace-view'),
+            about: document.getElementById('about-view')
+        };
+        const toolUI = {
+            title: document.getElementById('tool-title'),
+            desc: document.getElementById('tool-desc'),
+            content: document.getElementById('tool-content'),
+            actionBtn: document.getElementById('action-btn')
+        };
+
+        // --- Navigation ---
+        function showHome() {
+            resetTool();
+            hideAllViews();
+            views.dashboard.classList.remove('hidden');
+            // Allow reflow before removing opacity
+            setTimeout(() => {
+                views.dashboard.classList.remove('opacity-0');
+                views.dashboard.classList.remove('scale-95');
+            }, 50);
+        }
+
+        function showAbout() {
+            resetTool();
+            hideAllViews();
+            views.about.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function hideAllViews() {
+            views.dashboard.classList.add('hidden', 'opacity-0', 'scale-95');
+            views.workspace.classList.add('hidden');
+            views.about.classList.add('hidden');
+        }
+
+        function selectTool(toolId) {
+            currentTool = toolId;
+            hideAllViews();
+            views.workspace.classList.remove('hidden');
+            setupToolUI(toolId);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function setupToolUI(toolId) {
+            uploadedFiles = [];
+            const config = getToolConfig(toolId);
+            
+            toolUI.title.innerText = config.title;
+            toolUI.desc.innerText = config.desc;
+            toolUI.content.innerHTML = config.html;
+            
+            toolUI.actionBtn.innerHTML = `<span>${config.btnText}</span>`;
+            toolUI.actionBtn.onclick = config.action;
+            toolUI.actionBtn.disabled = false;
+
+            if(document.getElementById('drop-zone')) {
+                initDragAndDrop(config.inputType);
+            }
+        }
+
+        function getToolConfig(toolId) {
+            switch(toolId) {
+                case 'img2pdf':
+                    return {
+                        title: 'Images to PDF',
+                        desc: 'Convert your photos into a single document.',
+                        inputType: 'image',
+                        btnText: 'Generate PDF',
+                        action: processImg2Pdf,
+                        html: getUploadTemplate('fas fa-cloud-upload-alt', 'Drag & Drop Images', 'Supports JPG, PNG, WEBP')
+                    };
+                case 'merge':
+                    return {
+                        title: 'Merge PDFs',
+                        desc: 'Combine multiple PDF files into one.',
+                        inputType: 'pdf',
+                        btnText: 'Merge Files',
+                        action: processMergePdf,
+                        html: getUploadTemplate('fas fa-file-pdf', 'Drag & Drop PDFs', 'The order you upload is the order they merge')
+                    };
+                case 'text2pdf':
+                    return {
+                        title: 'Text to PDF',
+                        desc: 'Type or paste text to generate a PDF.',
+                        inputType: 'text',
+                        btnText: 'Download PDF',
+                        action: processText2Pdf,
+                        html: `
+                            <div class="relative group">
+                                <div class="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl opacity-20 group-hover:opacity-40 transition duration-500 blur"></div>
+                                <textarea id="text-input" class="relative w-full h-80 bg-[#0a0a0f] border border-gray-700/50 rounded-xl p-6 text-gray-200 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 resize-none font-mono text-sm leading-relaxed" placeholder="// Start typing or paste your content here..."></textarea>
+                            </div>
+                            <div class="mt-6 flex flex-wrap gap-4 items-center">
+                                <span class="text-sm text-gray-400">Font Size:</span>
+                                <select id="font-size" class="bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 px-4 hover:bg-white/10 transition-colors cursor-pointer">
+                                    <option value="10">Small (10pt)</option>
+                                    <option value="12" selected>Normal (12pt)</option>
+                                    <option value="16">Large (16pt)</option>
+                                    <option value="24">Header (24pt)</option>
+                                </select>
+                            </div>
+                        `
+                    };
+                case 'any2pdf':
+                    return {
+                        title: 'Universal Converter',
+                        desc: 'Convert Word Docs, code, text, and images.',
+                        inputType: 'any',
+                        btnText: 'Convert All',
+                        action: processAny2Pdf,
+                        html: getUploadTemplate('fas fa-magic', 'Drag & Drop Files', 'Supports .docx, .txt, .md, Code files & Images')
+                    };
+            }
+        }
+
+        function getUploadTemplate(icon, title, subtitle) {
+            return `
+                <div id="drop-zone" class="border-2 border-dashed border-gray-700/50 rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer hover:border-purple-500 hover:bg-purple-900/10 group bg-[#0a0a0f]/50">
+                    <div class="mb-6 w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mx-auto group-hover:scale-110 group-hover:bg-purple-500/20 transition-all duration-300">
+                        <i class="${icon} text-purple-400 text-3xl group-hover:text-purple-300"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold text-white mb-2">${title}</h4>
+                    <p class="text-gray-500 text-sm mb-8">${subtitle}</p>
+                    <button class="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl text-sm font-medium transition-all hover:scale-105 border border-white/5">
+                        Choose Files
+                    </button>
+                </div>
+                <div id="file-list" class="mt-8 space-y-3"></div>
+            `;
+        }
+
+        // --- File Handling & UI ---
+
+        function initDragAndDrop(type) {
+            const dropZone = document.getElementById('drop-zone');
+            let fileInput;
+            
+            if (type === 'image') fileInput = document.getElementById('file-input-img');
+            else if (type === 'pdf') fileInput = document.getElementById('file-input-pdf');
+            else if (type === 'any') fileInput = document.getElementById('file-input-any');
+
+            dropZone.onclick = (e) => {
+                // Prevent bubbling if clicking file list items which might be inside
+                if(e.target.closest('.file-item')) return;
+                fileInput.click();
+            }
+
+            fileInput.onchange = (e) => handleFiles(e.target.files);
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-active');
+            });
+            ['dragleave', 'dragend'].forEach(evt => {
+                dropZone.addEventListener(evt, () => dropZone.classList.remove('drag-active'));
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-active');
+                handleFiles(e.dataTransfer.files);
+            });
+        }
+
+        function handleFiles(files) {
+            const fileListUI = document.getElementById('file-list');
+            
+            Array.from(files).forEach(file => {
+                // Simple validation
+                if (currentTool === 'img2pdf' && !file.type.startsWith('image/')) return;
+                if (currentTool === 'merge' && file.type !== 'application/pdf') return;
+                
+                uploadedFiles.push(file);
+
+                // Add to UI with animation
+                let iconClass = 'fa-file';
+                let colorClass = 'text-gray-400';
+                
+                if (file.type.startsWith('image/')) { iconClass = 'fa-image'; colorClass = 'text-blue-400'; }
+                else if (file.type === 'application/pdf') { iconClass = 'fa-file-pdf'; colorClass = 'text-red-400'; }
+                else if (file.name.endsWith('.docx')) { iconClass = 'fa-file-word'; colorClass = 'text-blue-600'; }
+                else if (file.type.startsWith('text/') || file.name.match(/\.(js|json|md|csv|log)$/i)) { iconClass = 'fa-file-code'; colorClass = 'text-green-400'; }
+
+                const item = document.createElement('div');
+                item.className = 'file-item flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5 hover:bg-white/10 transition-colors animate-[fadeIn_0.3s_ease]';
+                item.innerHTML = `
+                    <div class="flex items-center overflow-hidden">
+                        <div class="w-10 h-10 rounded-lg bg-black/30 flex items-center justify-center mr-4 shrink-0">
+                            <i class="fas ${iconClass} ${colorClass}"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-sm text-gray-200 truncate font-medium">${file.name}</div>
+                            <div class="text-xs text-gray-500">${(file.size/1024).toFixed(1)} KB</div>
+                        </div>
+                    </div>
+                    <button onclick="removeFile(this, '${file.name}')" class="w-8 h-8 rounded-full hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors flex items-center justify-center ml-2">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                fileListUI.appendChild(item);
+            });
+        }
+
+        function removeFile(btn, fileName) {
+            uploadedFiles = uploadedFiles.filter(f => f.name !== fileName);
+            btn.closest('.file-item').remove();
+        }
+
+        function resetTool() {
+            uploadedFiles = [];
+            const list = document.getElementById('file-list');
+            if(list) list.innerHTML = '';
+            const textInput = document.getElementById('text-input');
+            if(textInput) textInput.value = '';
+        }
+
+        function setLoading(isLoading) {
+            const btn = toolUI.actionBtn;
+            if (isLoading) {
+                btn.innerHTML = `<div class="spinner mr-2"></div> Processing...`;
+                btn.disabled = true;
+                btn.classList.add('opacity-75', 'cursor-not-allowed');
+            } else {
+                const config = getToolConfig(currentTool);
+                btn.innerHTML = `<span>${config.btnText}</span>`;
+                btn.disabled = false;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('translate-y-24');
+            setTimeout(() => toast.classList.add('translate-y-24'), 3000);
+        }
+
+        // --- Core Functions ---
+
+        async function processImg2Pdf() {
+            if (uploadedFiles.length === 0) return alert("Please upload an image.");
+            setLoading(true);
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const width = doc.internal.pageSize.getWidth();
+                const height = doc.internal.pageSize.getHeight();
+
+                for (let i = 0; i < uploadedFiles.length; i++) {
+                    if (i > 0) doc.addPage();
+                    const imgData = await readFileAsDataURL(uploadedFiles[i]);
+                    const props = doc.getImageProperties(imgData);
+                    const ratio = props.width / props.height;
+                    const pdfHeight = (width - 20) / ratio;
+                    doc.addImage(imgData, 'JPEG', 10, 10, width - 20, pdfHeight);
+                }
+                doc.save('nebula-images.pdf');
+                showToast('Images converted successfully!');
+            } catch (e) { console.error(e); alert("Conversion failed."); }
+            finally { setLoading(false); }
+        }
+
+        async function processMergePdf() {
+            if (uploadedFiles.length < 2) return alert("Select at least 2 PDF files.");
+            setLoading(true);
+            try {
+                const { PDFDocument } = PDFLib;
+                const mergedPdf = await PDFDocument.create();
+                for (const file of uploadedFiles) {
+                    const bytes = await readFileAsArrayBuffer(file);
+                    const pdf = await PDFDocument.load(bytes);
+                    const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                    pages.forEach(p => mergedPdf.addPage(p));
+                }
+                const pdfBytes = await mergedPdf.save();
+                downloadBlob(pdfBytes, 'nebula-merged.pdf', 'application/pdf');
+                showToast('PDFs merged successfully!');
+            } catch (e) { console.error(e); alert("Merge failed."); }
+            finally { setLoading(false); }
+        }
+
+        function processText2Pdf() {
+            const text = document.getElementById('text-input').value;
+            if (!text.trim()) return alert("Enter some text.");
+            setLoading(true);
+            setTimeout(() => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFont("helvetica");
+                doc.setFontSize(parseInt(document.getElementById('font-size').value));
+                const lines = doc.splitTextToSize(text, 180);
+                let y = 15;
+                lines.forEach(line => {
+                    if (y > 280) { doc.addPage(); y = 15; }
+                    doc.text(line, 15, y);
+                    y += 7;
+                });
+                doc.save('nebula-note.pdf');
+                setLoading(false);
+                showToast('Note saved as PDF!');
+            }, 500);
+        }
+
+        // Updated Universal Converter with DOCX Support
+        async function processAny2Pdf() {
+            if (uploadedFiles.length === 0) return alert("Upload at least one file.");
+            setLoading(true);
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const margin = 15;
+                let isFirstPage = true;
+
+                for (const file of uploadedFiles) {
+                    if (!isFirstPage) doc.addPage();
+                    isFirstPage = false;
+
+                    // Header
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(10);
+                    doc.setTextColor(150);
+                    doc.text(`File: ${file.name}`, margin, margin);
+                    doc.setTextColor(0);
+
+                    if (file.type.startsWith('image/')) {
+                        const imgData = await readFileAsDataURL(file);
+                        const props = doc.getImageProperties(imgData);
+                        const ratio = props.width / props.height;
+                        let w = pageWidth - (margin * 2);
+                        let h = w / ratio;
+                        if (h > pageHeight - 40) { h = pageHeight - 40; w = h * ratio; }
+                        doc.addImage(imgData, 'JPEG', margin, margin + 10, w, h);
+                    } 
+                    else if (file.name.endsWith('.docx')) {
+                        // DOCX Handling via Mammoth
+                        try {
+                            const arrayBuffer = await readFileAsArrayBuffer(file);
+                            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+                            const text = result.value; // The raw text
+                            
+                            doc.setFont("times", "normal");
+                            doc.setFontSize(12);
+                            const lines = doc.splitTextToSize(text, pageWidth - (margin * 2));
+                            
+                            let y = margin + 15;
+                            lines.forEach(line => {
+                                if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+                                doc.text(line, margin, y);
+                                y += 6;
+                            });
+                            
+                            if (result.messages.length > 0) console.log("Mammoth messages:", result.messages);
+                        } catch (err) {
+                            console.error(err);
+                            doc.setTextColor(255, 0, 0);
+                            doc.text("Error reading DOCX file. Ensure it is not corrupted.", margin, margin + 20);
+                        }
+                    }
+                    else {
+                        // Text/Code files
+                        try {
+                            const text = await readFileAsText(file);
+                            doc.setFont("courier", "normal");
+                            doc.setFontSize(10);
+                            const lines = doc.splitTextToSize(text, pageWidth - (margin * 2));
+                            let y = margin + 15;
+                            lines.forEach(line => {
+                                if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+                                doc.text(line, margin, y);
+                                y += 5;
+                            });
+                        } catch (e) {
+                            doc.text("[Unreadable file type]", margin, margin + 15);
+                        }
+                    }
+                }
+                doc.save('nebula-universal.pdf');
+                showToast('Conversion complete!');
+            } catch (error) {
+                console.error(error);
+                alert("An error occurred during conversion.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- Utils ---
+        const readFileAsDataURL = (f) => new Promise((resolve, reject) => {
+            const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(f);
+        });
+        const readFileAsArrayBuffer = (f) => new Promise((resolve, reject) => {
+            const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsArrayBuffer(f);
+        });
+        const readFileAsText = (f) => new Promise((resolve, reject) => {
+            const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsText(f);
+        });
+        const downloadBlob = (data, name, type) => {
+            const blob = new Blob([data], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+        };
+    </script>
+</body>
+</html>
