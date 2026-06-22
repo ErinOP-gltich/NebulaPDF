@@ -50,6 +50,7 @@ Because NebulaPDF is a purely static, client-side application, getting it runnin
 ```bash
    git clone [https://github.com/yourusername/nebula-pdf.git](https://github.com/yourusername/nebula-pdf.git)
    cd nebula-pdf
+```
 
 2. **Serve the files:**
    You just need a local web server to serve the `index.html` file (to avoid CORS issues with local file loading). You can use any static server. 
@@ -57,7 +58,7 @@ Because NebulaPDF is a purely static, client-side application, getting it runnin
    Using Python:
 ```bash
    python3 -m http.server 8000
-
+```
 
 Using VS Code:
 
