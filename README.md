@@ -41,3 +41,42 @@ Because NebulaPDF is a purely static, client-side application, getting it runnin
    ```bash
    git clone [https://github.com/yourusername/nebula-pdf.git](https://github.com/yourusername/nebula-pdf.git)
    cd nebula-pdf
+   ```markdown
+2. **Serve the files:**
+   You just need a local web server to serve the `index.html` file (to avoid CORS issues with local file loading). You can use any static server. 
+   
+   Using Python:
+```bash
+   python3 -m http.server 8000
+
+```
+
+Using VS Code:
+
+* Install the **Live Server** extension.
+* Right-click `index.html` and select "Open with Live Server".
+
+3. **Open in browser:**
+Navigate to `http://localhost:8000`
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/yourusername/nebula-pdf/issues).
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+*Crafted with ❤️ by Aman.*
+
+```
+
+```
