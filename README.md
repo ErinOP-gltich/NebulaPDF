@@ -6,7 +6,9 @@
 
 **SYSTEM_STATUS: ONLINE. Zero uploads. Zero servers.**
 
-NebulaPDF is a brutalist, print-shop-inspired suite of professional PDF tools that runs entirely in your browser. Engineered for absolute privacy, your documents are processed locally via a WebAssembly engine. No temporary files stored on external servers. Data never leaves your machine.
+NebulaPDF is a brutalist, print-shop-inspired suite of professional PDF tools that runs entirely in your browser. Engineered for absolute privacy, your documents are processed locally via a WebAssembly engine. No temporary files stored on external servers. Data never leaves your machine. 
+
+Now fully optimized for mobile devices, ensuring a flawless typesetting and bindery experience on the go.
 
 🌍 **Live Output:** [nebula-pdf.vercel.app](https://nebula-pdf.vercel.app)
 
@@ -15,6 +17,7 @@ NebulaPDF is a brutalist, print-shop-inspired suite of professional PDF tools th
 ## ✨ Press Capabilities
 
 * **🔒 Absolute Privacy:** 100% client-side processing. Your files never touch a server.
+* **📱 Mobile-Optimized:** Thumb-friendly UI, responsive typography, and anti-zoom scaling for iOS devices.
 * **👁️ Optical Reg (OCR):** Scan and extract text plates from raster images utilizing local ML (Tesseract.js).
 * **✂️ Page Extractor:** Separate signatures. Pull specific page ranges from a master document to create a new file.
 * **🔄 Orientation Fix:** Correct feed errors. Batch rotate all sheets in a document (90°, 180°, 270°).
@@ -22,11 +25,18 @@ NebulaPDF is a brutalist, print-shop-inspired suite of professional PDF tools th
 * **🖨️ Universal Press:** Plate generation. Convert Word (`.docx`), raw code logs, and image assets into PDF format.
 * **⌨️ Direct Typeset:** Raw input interface to paste notes or code directly into the browser to typeset a clean document.
 
+## 🎨 Design Identity
+
+NebulaPDF rejects the generic "dark glass" aesthetic in favor of a utilitarian, editorial identity:
+* **Paper & Ink Palette:** Built on a warm `#F5F2EB` paper canvas with `#16140F` ink.
+* **Print Motifs:** Features pure CSS barcodes, CMYK registration dots, and corner crop marks.
+* **Typography:** Pairs `Space Grotesk` (display) with `IBM Plex Mono` (metadata/utility).
+
 ## 🛠️ Press Components
 
 Built with a utilitarian focus on speed and local execution:
 
-* **Canvas / Interface:** HTML5, [Tailwind CSS](https://tailwindcss.com/) (Space Grotesk & IBM Plex Mono)
+* **Canvas / Interface:** HTML5, [Tailwind CSS](https://tailwindcss.com/) 
 * **Engine (PDF Ops):** [pdf-lib](https://pdf-lib.js.org/)
 * **Typesetter (Generation):** [jsPDF](https://raw.githack.com/MrRio/jsPDF/master/docs/index.html)
 * **Parser (DOCX):** [Mammoth.js](https://github.com/mwilliamson/mammoth.js)
@@ -37,10 +47,10 @@ Built with a utilitarian focus on speed and local execution:
 Because NebulaPDF is a purely static, client-side application, getting it running locally is incredibly simple. You don't need Node.js, databases, or build steps.
 
 1. **Clone the repository:**
-   ```bash
+```bash
    git clone [https://github.com/yourusername/nebula-pdf.git](https://github.com/yourusername/nebula-pdf.git)
    cd nebula-pdf
-   
+
 2. **Serve the files:**
    You just need a local web server to serve the `index.html` file (to avoid CORS issues with local file loading). You can use any static server. 
    
@@ -48,7 +58,6 @@ Because NebulaPDF is a purely static, client-side application, getting it runnin
 ```bash
    python3 -m http.server 8000
 
-```
 
 Using VS Code:
 
