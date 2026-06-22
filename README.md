@@ -1,39 +1,38 @@
-# 🌌 NebulaPDF
+# 🖨️ NebulaPDF: Press & Bindery
 
 [![Deploy with Vercel](https://vercelbadge.vercel.app/api/aman/nebula-pdf)](https://nebula-pdf.vercel.app)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](https://opensource.org/licenses/MIT)
-[![Client-Side](https://img.shields.io/badge/Architecture-100%25%20Client--Side-10b981.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-16140F.svg)](https://opensource.org/licenses/MIT)
+[![Client-Side](https://img.shields.io/badge/Architecture-100%25%20Client--Side-0B7FA8.svg)]()
 
-**Next-Gen Document Tools. Zero uploads. Zero servers.**
+**SYSTEM_STATUS: ONLINE. Zero uploads. Zero servers.**
 
-NebulaPDF is a modern, lightning-fast suite of professional PDF tools that runs entirely in your browser. Engineered for privacy and speed, your sensitive documents never leave your device. 
+NebulaPDF is a brutalist, print-shop-inspired suite of professional PDF tools that runs entirely in your browser. Engineered for absolute privacy, your documents are processed locally via a WebAssembly engine. No temporary files stored on external servers. Data never leaves your machine.
 
-🌍 **Live Demo:** [nebula-pdf.vercel.app](https://nebula-pdf.vercel.app)
+🌍 **Live Output:** [nebula-pdf.vercel.app](https://nebula-pdf.vercel.app)
 
 ---
 
-## ✨ Features
+## ✨ Press Capabilities
 
-* **🔒 Privacy First:** 100% client-side processing using WebAssembly. No backend, no databases, no data harvesting.
-* **👁️ AI Text Extraction (OCR):** Extract text from scanned documents and images using local machine learning (Tesseract.js).
-* **📑 Universal Converter:** Seamlessly convert Word docs (`.docx`), Markdown, Code files, and Images into clean PDFs.
-* **✂️ Extract & Split:** Pull specific pages (e.g., `1-3, 5`) out of massive PDFs to create new, optimized documents.
-* **🔄 Rotate Pages:** Fix upside-down or sideways PDF files instantly.
-* **🔗 Merge PDFs:** Stitch multiple PDF files together with drag-and-drop ordering.
-* **📝 Quick Text-to-PDF:** A sleek, distraction-free environment to type notes or paste code and download instantly as a PDF.
+* **🔒 Absolute Privacy:** 100% client-side processing. Your files never touch a server.
+* **👁️ Optical Reg (OCR):** Scan and extract text plates from raster images utilizing local ML (Tesseract.js).
+* **✂️ Page Extractor:** Separate signatures. Pull specific page ranges from a master document to create a new file.
+* **🔄 Orientation Fix:** Correct feed errors. Batch rotate all sheets in a document (90°, 180°, 270°).
+* **📚 Bindery (Merge):** Stitch multiple files together. Sequence determines output order.
+* **🖨️ Universal Press:** Plate generation. Convert Word (`.docx`), raw code logs, and image assets into PDF format.
+* **⌨️ Direct Typeset:** Raw input interface to paste notes or code directly into the browser to typeset a clean document.
 
-## 🛠️ Tech Stack
+## 🛠️ Press Components
 
-NebulaPDF is built with modern, lightweight web technologies:
+Built with a utilitarian focus on speed and local execution:
 
-* **UI / Styling:** HTML5, [Tailwind CSS](https://tailwindcss.com/)
-* **PDF Manipulation:** [pdf-lib](https://pdf-lib.js.org/)
-* **PDF Generation:** [jsPDF](https://raw.githack.com/MrRio/jsPDF/master/docs/index.html)
-* **DOCX Parsing:** [Mammoth.js](https://github.com/mwilliamson/mammoth.js)
-* **Optical Character Recognition:** [Tesseract.js](https://tesseract.projectnaptha.com/) (WebAssembly port)
-* **Icons:** FontAwesome
+* **Canvas / Interface:** HTML5, [Tailwind CSS](https://tailwindcss.com/) (Space Grotesk & IBM Plex Mono)
+* **Engine (PDF Ops):** [pdf-lib](https://pdf-lib.js.org/)
+* **Typesetter (Generation):** [jsPDF](https://raw.githack.com/MrRio/jsPDF/master/docs/index.html)
+* **Parser (DOCX):** [Mammoth.js](https://github.com/mwilliamson/mammoth.js)
+* **Scanner (OCR):** [Tesseract.js](https://tesseract.projectnaptha.com/) (WASM)
 
-## 🚀 Getting Started (Local Development)
+## 🚀 Initialization (Local Development)
 
 Because NebulaPDF is a purely static, client-side application, getting it running locally is incredibly simple. You don't need Node.js, databases, or build steps.
 
@@ -41,7 +40,7 @@ Because NebulaPDF is a purely static, client-side application, getting it runnin
    ```bash
    git clone [https://github.com/yourusername/nebula-pdf.git](https://github.com/yourusername/nebula-pdf.git)
    cd nebula-pdf
-   ```markdown
+   
 2. **Serve the files:**
    You just need a local web server to serve the `index.html` file (to avoid CORS issues with local file loading). You can use any static server. 
    
