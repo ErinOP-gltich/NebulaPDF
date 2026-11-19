@@ -18,7 +18,11 @@ function setTheme(next, e) {
   };
   if (!document.startViewTransition || calm()) return apply();
   const x = e?.clientX ?? innerWidth - 40, y = e?.clientY ?? 40, r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-  document.startViewTransition(apply).ready.then(() => root.animate(
+  let done = false;
+  const once = () => { if (!done) { done = true; apply(); } };
+  const vt = document.startViewTransition(once);
+  setTimeout(() => { if (!done) { vt.skipTransition(); once(); } }, 400); // same safety net as swap()
+  vt.ready.then(() => root.animate(
     { clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
     { duration: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
 }
@@ -78,6 +82,7 @@ addEventListener('pointerdown', e => {
 
 /* ---------- hero: a deep-field sky. Stars bend around the pointer like light around a mass; pages orbit
    the drop well and spiral into it while a file is dragged over the window. ---------- */
+const ORBITS = [[.5, .3, '255,90,110', -.35, 1.2], [.72, .28, '255,181,71', .22, 1], [.98, .3, '47,224,208', -.12, .85], [1.28, .32, '139,124,255', .38, .6]];
 const sky = (() => {
   const cv = $('sky'), ctx = cv.getContext('2d'), hero = cv.parentElement;
   let W = 0, H = 0, stars = [], pages = [], clouds = [], pull = 0, pullTo = 0, running = false, onScreen = true, comet = null;
@@ -145,6 +150,18 @@ const sky = (() => {
       const d = 24 + i * 22, drift = Math.sin(t * .05 + i) * 10;
       ctx.drawImage(cl, -d - px * d + drift, -d - py * d, W + 2 * d, H + 2 * d);
     });
+    // orbits: thin coloured arcs sweeping slowly around the drop well
+    ctx.globalCompositeOperation = 'source-over';
+    const span = Math.max(W, H) * .5;
+    ORBITS.forEach(([k, flat, col, tilt, len], i) => {
+      const a0 = t * .035 * (i % 2 ? 1 : -1) + i * 1.7, rx = span * k * (1 - pull * .3), ry = rx * flat;
+      ctx.strokeStyle = `rgba(${col},.42)`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, tilt, a0, a0 + len * Math.PI); ctx.stroke();
+      const ex = c.x + rx * Math.cos(a0 + len * Math.PI) * Math.cos(tilt) - ry * Math.sin(a0 + len * Math.PI) * Math.sin(tilt);
+      const ey = c.y + rx * Math.cos(a0 + len * Math.PI) * Math.sin(tilt) + ry * Math.sin(a0 + len * Math.PI) * Math.cos(tilt);
+      ctx.fillStyle = `rgba(${col},.95)`; ctx.beginPath(); ctx.arc(ex, ey, 2.4, 0, 7); ctx.fill();
+    });
+    ctx.globalCompositeOperation = 'lighter';
     for (const s of stars) {
       let x = s.x - px * 40 * s.z, y = s.y - py * 26 * s.z;
       if (pull > .01) { // accretion: everything swirls toward the well
@@ -250,14 +267,26 @@ const sky = (() => {
 
 /* ---------- tool grid: a row of the most used tools, then every group under its own heading ---------- */
 let filter = 'all';
-const card = (id, big = false) => { const t = TOOLS[id]; return `<button class="card reveal${big ? ' featured' : ''}" data-id="${id}" onclick="openTool('${id}', this)">
-  ${big ? '<span class="orb"></span>' : ''}<span class="card-icon">${icon(t.icon)}</span>
-  <span class="card-text"><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span></button>`; };
+// what goes in and what comes out, shown as tags on each card
+const IO = { merge: 'PDF → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', organize: 'PDF → PDF', rotate: 'PDF → PDF', compress: 'PDF → PDF', repair: 'PDF → PDF',
+  ocr: 'PDF / Image → Text', jpg2pdf: 'Image → PDF', word2pdf: 'DOCX → PDF', excel2pdf: 'XLSX → PDF', text2pdf: 'Text → PDF', pdf2jpg: 'PDF → JPG / PNG',
+  pdf2word: 'PDF → DOCX', pdf2ppt: 'PDF → PPTX', pdf2excel: 'PDF → XLSX', sign: 'PDF → PDF', edittext: 'PDF → PDF', fillform: 'PDF → PDF', numbers: 'PDF → PDF',
+  watermark: 'PDF → PDF', crop: 'PDF → PDF', redact: 'PDF → PDF', protect: 'PDF → PDF', unlock: 'PDF → PDF' };
+const tagsOf = id => { const t = TOOLS[id]; return [IO[id], t.batch && 'Batch', t.multiple && 'Many files', /OCR/.test(t.desc) && 'OCR'].filter(Boolean); };
+const groupName = g => GROUPS.find(x => x[0] === g)[1];
+const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0'); return `<button class="card cell reveal${big ? ' featured' : ''}" data-id="${id}" data-g="${t.group}" onclick="openTool('${id}', this)">
+  ${big ? `<span class="cell-art"><span class="orb"></span><span class="card-icon">${icon(t.icon)}</span></span>` : ''}
+  <span class="cell-top"><span class="num">${n}</span><span class="label">${groupName(t.group)}</span></span>
+  ${big ? '' : `<span class="card-icon">${icon(t.icon)}</span>`}
+  <span class="card-text"><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span>
+  <span class="tags">${tagsOf(id).map(x => `<span class="tag">${x}</span>`).join('')}</span>
+  <span class="cell-foot label">Open tool${icon('open')}</span></button>`; };
 const ids = Object.keys(TOOLS);
-$('popular').innerHTML = `<header class="group-head"><h3>Most used</h3></header><div class="grid grid-popular">${ids.filter(id => TOOLS[id].featured).map(id => card(id, true)).join('')}</div>`;
+$('tools-count').textContent = `${ids.length} tools, ${GROUPS.length} groups`;
+$('popular').innerHTML = `<header class="group-head"><h3>Most used</h3><span class="label">Start here</span></header><div class="grid grid-popular">${ids.filter(id => TOOLS[id].featured).map(id => card(id, true)).join('')}</div>`;
 $('groups').innerHTML = GROUPS.map(([g, name]) => {
   const list = ids.filter(id => TOOLS[id].group === g);
-  return `<section class="tool-group" data-g="${g}"><header class="group-head"><h3>${name}</h3><span class="mono">${plural(list.length, 'tool')}</span></header><div class="grid">${list.map(id => card(id)).join('')}</div></section>`;
+  return `<section class="tool-group" data-g="${g}"><header class="group-head"><h3>${name}</h3><span class="label">${plural(list.length, 'tool')}</span></header><div class="grid">${list.map(id => card(id)).join('')}</div></section>`;
 }).join('');
 $('chips').innerHTML = [['all', 'All tools'], ...GROUPS].map(([g, n]) => `<button class="chip" data-g="${g}" aria-pressed="${g === 'all'}">${n}</button>`).join('');
 $('chips').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { filter = b.dataset.g; applyFilter(); } };
@@ -367,16 +396,24 @@ let homeScroll = 0;
 function swap(fn, shared) {
   if (!document.startViewTransition || calm()) return fn();
   if (shared) { shared.icon.style.viewTransitionName = 'tool-icon'; shared.name.style.viewTransitionName = 'tool-name'; }
-  const vt = document.startViewTransition(() => {
+  let done = false;
+  const update = () => {
+    if (done) return;
+    done = true;
     if (shared) { shared.icon.style.viewTransitionName = ''; shared.name.style.viewTransitionName = ''; }
     fn();
     if (shared) { $('ws-icon').style.viewTransitionName = 'tool-icon'; $('tool-title').style.viewTransitionName = 'tool-name'; }
-  });
+  };
+  const vt = document.startViewTransition(update);
+  // The browser only swaps views on its next painted frame. If it isn't painting (a background tab, a busy
+  // machine), don't leave the user on the old screen: skip the animation and switch now.
+  setTimeout(() => { if (!done) { vt.skipTransition(); update(); } }, 400);
   vt.ready.catch(() => {}); // an interrupted transition is fine: the new view is already in place
   vt.finished.finally(() => { $('ws-icon').style.viewTransitionName = ''; $('tool-title').style.viewTransitionName = ''; });
 }
 function showView(name) {
   Object.entries(views).forEach(([k, v]) => v.classList.toggle('hidden', k !== name));
+  root.classList.toggle('on-tool', name === 'workspace');
   sky.sync();
 }
 function openTool(id, card, files) {
@@ -410,11 +447,13 @@ function selectTool(id) {
   document.title = `${t.name} · NebulaPDF`;
   $('ws-icon').innerHTML = icon(t.icon);
   $('tool-title').textContent = t.name;
+  $('ws-crumb').textContent = `Tool ${String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0')} / ${groupName(t.group)}`;
+  document.documentElement.dataset.g = t.group;
   $('tool-desc').textContent = t.desc;
   $('tool-content').innerHTML = t.accept ? `<div id="drop-zone" class="drop" role="button" tabindex="0" data-cursor="drop">
       <span class="drop-icon">${icon('upload')}</span>
-      <p class="drop-title">${t.drop || (t.multiple ? 'Drop PDFs here' : 'Drop a PDF here')}</p>
-      <p class="drop-sub">or click to choose. ${t.note || 'One PDF file.'}</p></div>
+      <p class="drop-title">${t.drop || (t.multiple || t.batch ? 'Drop PDFs here' : 'Drop a PDF here')}</p>
+      <p class="drop-sub">or click to choose. ${t.note || (t.batch ? 'One PDF, or several to do them all at once.' : 'One PDF file.')}</p></div>
     <ol id="file-list" class="files${t.ordered ? ' numbered' : ''}"></ol>` : '';
   $('tool-options').innerHTML = '';
   $('tool-options').classList.add('hidden');
@@ -429,7 +468,7 @@ const resetTool = () => selectTool(currentTool);
 function initDrop(t) {
   const zone = $('drop-zone'), input = $('file-input');
   const open = () => {
-    Object.assign(input, { accept: t.accept, multiple: !!t.multiple, value: '' });
+    Object.assign(input, { accept: t.accept, multiple: !!(t.multiple || t.batch), value: '' });
     input.onchange = () => { handleFiles([...input.files]); input.value = ''; };
     input.click();
   };
@@ -446,7 +485,8 @@ function handleFiles(list) {
   const all = Array.from(list), files = all.filter(f => fits(f, t.accept));
   if (files.length < all.length) showToast(`${all.find(f => !fits(f, t.accept)).name} can't be used here. ${t.note || 'Choose a PDF.'}`, true);
   if (!files.length) return;
-  uploadedFiles = t.multiple ? [...uploadedFiles, ...files] : [files[0]];
+  uploadedFiles = t.multiple || t.batch ? [...uploadedFiles, ...files] : [files[0]];
+  uploadedFiles.forEach(f => { delete f.status; });
   files.filter(isPdf).forEach(f => need('pdflib')
     .then(async () => { f.pages = (await PDFLib.PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true, updateMetadata: false })).getPageCount(); renderFileList(); drawMeta(); })
     .catch(() => {}));
@@ -461,7 +501,7 @@ function renderFileList() {
   if (!list) return;
   list.innerHTML = uploadedFiles.map((f, i) => `<li class="file-item">
     <span class="file-badge"><span>${esc((f.name.split('.').pop() || '').slice(0, 4))}</span></span>
-    <div><span class="file-name">${esc(f.name)}</span><span class="file-meta">${f.pages ? `${plural(f.pages, 'page')}, ` : ''}${kb(f.size)}</span></div>
+    <div><span class="file-name">${esc(f.name)}</span><span class="file-meta">${f.status ? `${f.status.ok ? '✓' : '✕'} ${esc(f.status.text)}` : `${f.pages ? `${plural(f.pages, 'page')}, ` : ''}${kb(f.size)}`}</span></div>
     <div class="file-actions">${t.ordered && n > 1 ? `
       <button class="icon-btn" onclick="moveFile(${i}, -1)" aria-label="Move ${esc(f.name)} up" ${i === 0 ? 'disabled' : ''}>${icon('arrow-up')}</button>
       <button class="icon-btn" onclick="moveFile(${i}, 1)" aria-label="Move ${esc(f.name)} down" ${i === n - 1 ? 'disabled' : ''}>${icon('arrow-down')}</button>` : ''}
@@ -478,15 +518,17 @@ function removeFile(i) {
   renderFileList();
   drawPreview();
   if (!uploadedFiles.length) showToolOptions();
+  else if (TOOLS[currentTool].batch && uploadedFiles.length === 1) showToolOptions(true);
 }
 
 // Options appear once there's something to work on. `fresh` = new file(s) just arrived.
 function showToolOptions(fresh) {
   const t = TOOLS[currentTool], box = $('tool-options');
   if (t.accept && !uploadedFiles.length) { box.innerHTML = ''; box.classList.add('hidden'); return; }
-  if (!t.options || (t.multiple && box.innerHTML)) return;
-  box.innerHTML = t.options();
-  box.classList.remove('hidden');
+  if (!t.options) return;
+  if (!((t.multiple || t.batch) && box.innerHTML)) { box.innerHTML = t.options(); box.classList.remove('hidden'); }
+  // per-file extras (page picker, stage, form) only make sense for one file; a batch uses the same settings for all
+  if (t.batch && uploadedFiles.length > 1) { $('o-picker')?.replaceChildren(); return; }
   if (t.ready && fresh) need(...t.libs).then(() => t.ready(uploadedFiles)).catch(e => showToast(e.message, true));
 }
 
@@ -533,22 +575,62 @@ function setLoading(on, text = 'Working…', frac) {
   bar.classList.toggle('indeterminate', on && frac === undefined);
   bar.firstElementChild.style.width = frac === undefined ? '' : `${Math.round(frac * 100)}%`;
 }
-const progress = (text, frac) => setLoading(true, text, frac);
-window.onSaved = file => { lastFile = file; };
+let batchAt = null; // [file number, of how many] while a batch runs
+const progress = (text, frac) => batchAt
+  ? setLoading(true, `${batchAt[0] + 1}/${batchAt[1]}: ${text}`, (batchAt[0] + (frac ?? .5)) / batchAt[1])
+  : setLoading(true, text, frac);
+// Run a tool on each file, collect the results, and save them as one zip.
+async function runBatch(t) {
+  const outs = [], fails = [];
+  for (const [k, f] of uploadedFiles.entries()) {
+    batchAt = [k, uploadedFiles.length];
+    progress(f.name);
+    saveSink = [];
+    try {
+      const msg = await t.run([f]);
+      outs.push(...saveSink);
+      f.status = { ok: true, text: msg };
+    } catch (e) {
+      f.status = { ok: false, text: e instanceof UserError ? e.message : `Failed: ${e.message || e}` };
+      fails.push(f);
+    }
+    saveSink = null;
+    renderFileList();
+  }
+  batchAt = null;
+  if (!outs.length) throw new UserError(`None of the files worked. ${fails[0].status.text}`);
+  const seen = {}; // two files can't share a name in the zip
+  outs.forEach(o => { const n = (seen[o.name] = (seen[o.name] || 0) + 1); if (n > 1) o.name = o.name.replace(/(\.[^./]+)?$/, ` (${n})$1`); });
+  await need('jszip');
+  const zip = new JSZip();
+  outs.forEach(o => zip.file(o.name, o.data));
+  save(await zip.generateAsync({ type: 'blob' }), `nebula-${currentTool}-${uploadedFiles.length}-files.zip`);
+  return `Done for ${uploadedFiles.length - fails.length} of ${plural(uploadedFiles.length, 'file')}${fails.length ? `. ${fails.length} failed; see the list` : ''}`;
+}
+let autoSaved = true; // false when the browser wouldn't let the download start by itself
+window.onSaved = (file, auto) => { lastFile = file; autoSaved = auto; };
 
 async function runTool() {
   const t = TOOLS[currentTool];
   if (t.accept && !uploadedFiles.length) return showToast(t.multiple ? 'Add your files first.' : 'Add a file first.', true);
   setLoading(true);
   lastFile = null;
+  autoSaved = true;
   try {
     await need(...(t.libs || []));
-    const msg = await t.run(uploadedFiles);
+    const msg = t.batch && uploadedFiles.length > 1 ? await runBatch(t) : await t.run(uploadedFiles);
     processed += Math.max(1, uploadedFiles.length);
     $('ro-files').textContent = processed;
-    showToast(msg);
     showResult(msg);
+    if (lastFile && !autoSaved) {
+      showToast(`${msg}. Your file is ready: click Download to save it.`);
+      $('again')?.classList.add('attention');
+      $('again')?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' });
+      $('again')?.focus({ preventScroll: true });
+    } else showToast(msg);
   } catch (e) {
+    saveSink = null;
+    batchAt = null;
     console.error(e);
     showToast(e instanceof UserError ? e.message
       : /WinAnsi|cannot encode/i.test(e.message) ? 'That text uses characters the built-in PDF font can’t show. Use Latin letters, numbers and common symbols.'
@@ -561,10 +643,10 @@ function showResult(msg) {
   const next = f ? (SUGGEST[kindOf(f)] || []).filter(id => id !== currentTool).slice(0, 4) : [];
   box.innerHTML = `<div class="result">
     <div class="result-head"><span class="result-check">${icon('check')}</span><div style="min-width:0"><p class="result-title">${esc(msg)}</p>${f ? `<p class="result-file">${esc(f.name)}, ${kb(f.size)}</p>` : ''}</div></div>
-    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">It should download by itself. If your browser blocked it, use this button.</p>` : ''}
+    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">${autoSaved ? 'It should download by itself. If your browser blocked it, use this button.' : 'This took a little while, so your browser needs one click to save it.'}</p>` : ''}
     ${next.length ? `<p class="next-label">Keep going with this file</p><div class="row">${next.map(id => `<button class="chip" data-id="${id}">${icon(TOOLS[id].icon)}${TOOLS[id].name}</button>`).join('')}</div>` : ''}</div>`;
   box.classList.remove('hidden');
-  if (f) $('again').onclick = () => save(f, f.name);
+  if (f) $('again').onclick = () => { save(f, f.name); $('again').classList.remove('attention'); };
   box.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => openTool(b.dataset.id, null, [f]); });
 }
 
@@ -587,6 +669,82 @@ function showToast(msg, error = false) {
   };
   update();
   try { new PerformanceObserver(update).observe({ type: 'resource', buffered: true }); } catch { setInterval(update, 3000); }
+})();
+
+/* ---------- offline app: service worker, saving the tools, installing ---------- */
+const LIB_URLS = [...Object.values(CDN), PDFJS_WORKER];
+async function offlineStatus() {
+  if (!window.caches) return void ($('ro-offline').textContent = 'Not in this browser');
+  const c = await caches.open('nebula-libs');
+  const have = (await Promise.all(LIB_URLS.map(u => c.match(u, { ignoreVary: true })))).filter(Boolean).length;
+  $('ro-offline').textContent = have === LIB_URLS.length ? 'Ready' : `${have} of ${LIB_URLS.length} libraries saved`;
+  $('offline-btn').classList.toggle('hidden', have === LIB_URLS.length);
+}
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // keep this page's own files too, so the version you're using works offline
+  const files = ['./', ...[...document.querySelectorAll('script[src^="assets/"], link[href^="assets/"]')].map(e => e.getAttribute('src') || e.getAttribute('href'))];
+  caches.open('nebula-shell').then(async c => {
+    await c.addAll(files);
+    for (const r of await c.keys()) { // drop the copies of older versions
+      const u = new URL(r.url);
+      if (u.pathname.includes('/assets/') && u.search && !files.some(f => r.url.endsWith(f))) c.delete(r);
+    }
+  }).catch(() => {});
+}
+offlineStatus();
+$('offline-btn').onclick = async () => {
+  const b = $('offline-btn'), c = await caches.open('nebula-libs');
+  b.disabled = true;
+  try {
+    let k = 0;
+    for (const u of LIB_URLS) {
+      if (!(await c.match(u, { ignoreVary: true }))) await c.add(new Request(u, { mode: 'cors' }));
+      $('ro-offline').textContent = `${++k} of ${LIB_URLS.length} libraries saved`;
+    }
+    // the fonts (the stylesheet and the font files it points to); without them the page still works, in system fonts
+    try {
+      const css = document.querySelector('link[rel=stylesheet][href*="fonts.googleapis"]').href, text = await (await fetch(css)).text();
+      await c.put(css, new Response(text, { headers: { 'Content-Type': 'text/css' } }));
+      await Promise.all([...text.matchAll(/url\((https:[^)]+)\)/g)].map(m => c.add(new Request(m[1], { mode: 'cors' })).catch(() => {})));
+    } catch { /* fonts are optional */ }
+    showToast(`All ${Object.keys(TOOLS).length} tools now work offline. Reading scanned text needs one use online for each language.`);
+  } catch { showToast('Saving stopped: check your connection and try again.', true); }
+  b.disabled = false;
+  offlineStatus();
+};
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('install-nav').classList.remove('hidden'); });
+addEventListener('appinstalled', () => { installPrompt = null; $('install-nav').classList.add('hidden'); showToast('NebulaPDF is installed. Open it like any other app.'); });
+const install = async () => {
+  if (installPrompt) { installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('install-nav').classList.add('hidden'); return; }
+  if (matchMedia('(display-mode: standalone)').matches) return showToast('You’re already using the installed app.');
+  showToast(/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser’s menu and choose Install NebulaPDF (or Add to Home Screen).');
+};
+$('install-nav').onclick = $('install-btn').onclick = install;
+addEventListener('offline', () => showToast('You’re offline. Tools you’ve saved or used before still work.'));
+addEventListener('online', () => showToast('Back online.'));
+// the installed app can be chosen to open PDFs from the computer's files
+if ('launchQueue' in window) launchQueue.setConsumer(async p => { const files = await Promise.all((p.files || []).map(h => h.getFile())); if (files.length) route(files); });
+
+/* ---------- scroll ruler and section index: where you are on the home page ---------- */
+(() => {
+  const secs = [['top', document.querySelector('.hero')], ['tools', $('tools')], ['privacy', $('privacy')]];
+  let queued = false;
+  const tick = () => {
+    queued = false;
+    const max = root.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, scrollY / max) : 0;
+    $('ruler-mark').style.top = `${p * 100}%`;
+    $('ruler-pct').textContent = `${Math.round(p * 100)}%`;
+    let cur = 'top';
+    for (const [k, el] of secs) if (el.getBoundingClientRect().top < innerHeight * .4) cur = k;
+    if (root.classList.contains('on-tool')) cur = '';
+    document.querySelectorAll('[data-spy]').forEach(a => a.classList.toggle('active', a.dataset.spy === cur));
+  };
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(tick); } }, { passive: true });
+  addEventListener('resize', tick);
+  new MutationObserver(tick).observe(root, { attributes: true, attributeFilter: ['class'] });
+  tick();
 })();
 
 /* ---------- start ---------- */

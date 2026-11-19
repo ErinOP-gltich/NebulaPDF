@@ -4,8 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NebulaPDF</title>
-<meta name="description" content="24 PDF tools that run entirely in your browser. Merge, compress, convert to Word and Excel, sign and protect PDFs without uploading them.">
+<meta name="description" content="25 PDF tools that run entirely in your browser. Merge, compress, convert to Word and Excel, sign and protect PDFs without uploading them.">
 <meta name="theme-color" content="#05060A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NebulaPDF">
 <script>
   // Theme and motion before first paint, so the page never flashes the wrong theme.
   (function () {
@@ -19,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400..600&family=Anybody:wdth,wght@130,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/nebula.css?v=11">
+<link rel="stylesheet" href="assets/nebula.css?v=19">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF5A6E'/%3E%3Cstop offset='.5' stop-color='%23FFB547'/%3E%3Cstop offset='1' stop-color='%232FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%2305060A'/%3E%3Cellipse cx='16' cy='16' rx='12.5' ry='5' fill='none' stroke='url(%23g)' stroke-width='2.2' transform='rotate(-28 16 16)'/%3E%3Cpath d='M12 8.5h6l3.5 3.5v11.5H12z' fill='%23EEF0F7'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -34,12 +38,16 @@
       </svg>
       NebulaPDF
     </a>
-    <a class="nav-link" href="#tools" onclick="goHomeTo(event, 'tools')">Tools</a>
-    <a class="nav-link" href="#privacy" onclick="goHomeTo(event, 'privacy')">Privacy</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a class="nav-link" href="#tools" onclick="goHomeTo(event, 'tools')" data-spy="tools">Tools</a>
+      <a class="nav-link" href="#privacy" onclick="goHomeTo(event, 'privacy')" data-spy="privacy">Privacy</a>
+    </nav>
     <button class="search-btn" id="search-btn" aria-label="Search tools"><span data-icon="search"></span><span>Search tools</span><kbd>⌘K</kbd></button>
+    <button class="icon-btn hidden" id="install-nav" aria-label="Install NebulaPDF as an app" title="Install as an app"><span data-icon="install"></span></button>
     <button class="icon-btn theme-btn" id="theme-btn" aria-label="Switch between dark and light">
       <span data-icon="sun" class="ic-sun"></span><span data-icon="moon" class="ic-moon"></span>
     </button>
+    <button class="nav-cta" onclick="pickAny()"><span data-icon="upload"></span><span>Open a file</span></button>
   </header>
 
   <main id="main">
@@ -53,7 +61,7 @@
           </button>
           <div>
             <h1 class="headline" id="headline">Every PDF tool. None of the uploads.</h1>
-            <p class="lede">24 tools that run entirely inside this browser tab: merge, compress, convert to Word and Excel, sign, protect and more. Drop a file anywhere to start.</p>
+            <p class="lede">25 tools that run entirely on your device: merge, compress, convert to Word and Excel, edit, sign, fill forms and more. Works offline. Drop a file anywhere to start.</p>
             <div class="hero-actions">
               <button class="btn" onclick="pickAny()"><span data-icon="upload"></span>Choose a file</button>
               <a class="btn-ghost" href="#tools">Browse all tools</a>
@@ -66,6 +74,7 @@
 
       <section class="section" id="tools">
         <div class="wrap">
+          <div class="secbar"><span class="label"><b>01</b> / The tools</span><span class="label" id="tools-count"></span></div>
           <div class="section-head">
             <div class="reveal">
               <h2 class="h2">Pick a tool</h2>
@@ -80,7 +89,8 @@
         </div>
       </section>
 
-      <section class="section" id="privacy" style="border-top: 1px solid var(--line)">
+      <section class="section" id="privacy">
+        <div class="wrap"><div class="secbar"><span class="label"><b>02</b> / Privacy</span><span class="label">Nothing leaves this device</span></div></div>
         <div class="wrap privacy">
           <div class="reveal">
             <h2 class="h2">Your files never leave this tab.</h2>
@@ -89,9 +99,14 @@
           </div>
           <div class="readout reveal" style="--d:2">
             <div class="readout-row"><span><i class="pulse"></i>This session</span><span>live</span></div>
-            <div class="readout-row"><span>Tool code downloaded</span><b id="ro-down">0 KB</b></div>
+            <div class="readout-row"><span>Downloaded this visit</span><b id="ro-down">0 KB</b></div>
             <div class="readout-row"><span>Files processed here</span><b id="ro-files">0</b></div>
             <div class="readout-row"><span>Bytes of your files uploaded</span><b class="zero">0</b></div>
+            <div class="readout-row"><span>Works offline</span><b id="ro-offline">Checking…</b></div>
+            <div class="readout-actions">
+              <button class="btn-ghost btn-sm" id="offline-btn"><span data-icon="cloud"></span>Save tools for offline use</button>
+              <button class="btn-ghost btn-sm" id="install-btn"><span data-icon="install"></span>Install as an app</button>
+            </div>
           </div>
         </div>
       </section>
@@ -99,7 +114,7 @@
 
     <section id="workspace-view" class="ws hidden">
       <div class="wrap">
-        <button class="back" onclick="goHome()"><span data-icon="arrow-left"></span>All tools</button>
+        <div class="secbar ws-bar"><button class="back label" onclick="goHome()"><span data-icon="arrow-left"></span>All tools</button><span class="label" id="ws-crumb"></span></div>
         <div class="ws-head">
           <div class="ws-icon" id="ws-icon"></div>
           <div><h1 class="ws-title" id="tool-title"></h1><p class="ws-desc" id="tool-desc"></p></div>
@@ -137,6 +152,11 @@
     </div>
   </footer>
 
+  <div class="rails" aria-hidden="true"></div>
+  <div class="ruler" id="ruler" aria-hidden="true"><i id="ruler-mark"><span id="ruler-pct">0%</span></i></div>
+  <nav class="spy" id="spy" aria-label="Page sections">
+    <a href="#main" data-spy="top">Start</a><a href="#tools" data-spy="tools">Tools</a><a href="#privacy" data-spy="privacy">Privacy</a>
+  </nav>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div class="dropveil" id="dropveil" aria-hidden="true"><p>Drop to open</p></div>
 
@@ -158,8 +178,8 @@
   <div class="cursor gone" id="cursor" aria-hidden="true"><div class="cursor-ring"><span class="cursor-label" id="cursor-label"></span></div><div class="cursor-dot"></div></div>
   <input type="file" id="file-input" class="hidden">
 
-  <script src="assets/icons.js?v=11"></script>
-  <script src="assets/engine.js?v=11"></script>
-  <script src="assets/app.js?v=11"></script>
+  <script src="assets/icons.js?v=19"></script>
+  <script src="assets/engine.js?v=19"></script>
+  <script src="assets/app.js?v=19"></script>
 </body>
 </html>

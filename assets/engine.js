@@ -1,4 +1,4 @@
-/* NebulaPDF engine: library loading, PDF helpers, page layout analysis, the Word/Excel writers and the 24 tools.
+/* NebulaPDF engine: library loading, PDF helpers, page layout analysis, the Word/Excel writers and the tools.
    Loaded before app.js. The page shell (app.js) provides progress(), showToast() and the tool screen. */
 
 /* ---------- Libraries, loaded on demand ---------- */
@@ -45,9 +45,15 @@ const MIME = {
 const mimeOf = name => MIME[name.split('.').pop().toLowerCase()] || 'application/octet-stream';
 const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
 
+// During a batch run, results are collected here instead of downloaded one by one.
+let saveSink = null;
 // Every result goes through here, so the tool screen can offer it again and pass it to the next tool.
 function save(data, name) {
   const file = new File([data], name, { type: mimeOf(name) });
+  if (saveSink) { saveSink.push({ name, data: file }); return; }
+  // Browsers only let a page start a download by itself for a few seconds after the user's last click. A long job
+  // finishes after that, and the download would be silently blocked, so then we leave it to the Download button.
+  if (navigator.userActivation && !navigator.userActivation.isActive) return window.onSaved?.(file, false);
   const url = URL.createObjectURL(file);
   // the link is put in the page for the click: Firefox and older Safari ignore clicks on links that aren't
   const a = Object.assign(document.createElement('a'), { href: url, download: name, rel: 'noopener' });
@@ -56,9 +62,10 @@ function save(data, name) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 120000);
-  window.onSaved?.(file);
+  window.onSaved?.(file, true);
 }
 async function saveMany(files, zipName) {
+  if (saveSink) { files.forEach(f => saveSink.push({ name: `${zipName.replace(/\.zip$/, '')}/${f.name}`, data: f.data })); return; }
   if (files.length === 1) return save(files[0].data, files[0].name);
   await need('jszip');
   const zip = new JSZip();
@@ -280,7 +287,7 @@ function makeOcr(lang) {
 
 /* Read one page: its words (with font, size and colour when `rich`), and, for `rich`, its pictures and a
    background picture without the text. `ocr` reads scanned pages that have no text of their own. */
-async function analyzePage(view, n, { rich = false, ocr = null } = {}) {
+async function analyzePage(view, n, { rich = false, fonts = false, ocr = null } = {}) {
   const { Util, OPS } = pdfjsLib;
   const page = await view.getPage(n), vp = page.getViewport({ scale: 1 });
   const out = { W: vp.width, H: vp.height, items: [], images: [], figures: [], background: null, hiddenText: false };
@@ -308,6 +315,7 @@ async function analyzePage(view, n, { rich = false, ocr = null } = {}) {
     out.hiddenText = hidden > 0 && hidden >= shown * 4;
   }
 
+  if (fonts && !rich) await page.getOperatorList(); // loads the fonts, so their names and styles can be read
   const tc = await page.getTextContent();
   for (const it of tc.items) {
     if (!it.str?.trim()) continue;
@@ -315,7 +323,7 @@ async function analyzePage(view, n, { rich = false, ocr = null } = {}) {
     if (size < 2 || !(m[0] > 0) || Math.abs(m[1]) > .05 * m[0]) continue; // ponytail: rotated text isn't extracted (it stays in the page picture)
     const st = tc.styles[it.fontName] || {};
     let font = { family: { serif: 'Times New Roman', monospace: 'Courier New' }[st.fontFamily] || 'Arial', bold: false, italic: false };
-    if (rich) try { font = fontInfo(page.commonObjs.get(it.fontName), st); } catch { /* font not loaded: keep the generic one */ }
+    if (rich || fonts) try { font = fontInfo(page.commonObjs.get(it.fontName), st); } catch { /* font not loaded: keep the generic one */ }
     const asc = st.ascent > .5 ? st.ascent : .8, desc = st.descent < 0 ? st.descent : -.2;
     const width = it.width > 0 ? it.width : size * it.str.length * .5, total = it.str.length;
     let off = 0;
@@ -729,6 +737,70 @@ const PDF = '.pdf,application/pdf';
 const OCR_LANGS = [['eng', 'English'], ['spa', 'Spanish'], ['fra', 'French'], ['deu', 'German'], ['ita', 'Italian'], ['por', 'Portuguese'], ['hin', 'Hindi'], ['ara', 'Arabic'], ['chi_sim', 'Chinese (simplified)']];
 const NO_TEXT = "This PDF has no text to convert, even after reading the scanned pages. Check the language setting, or try Read text (OCR).";
 
+/* ---------- Page picker: thumbnails to click, kept in step with the page-range box ---------- */
+const PICKER = '<div id="o-picker" class="picker"></div>';
+// {1,2,3,5} -> "1-3, 5"
+const rangesOf = nums => {
+  const s = [...nums].sort((a, b) => a - b), out = [];
+  for (let i = 0; i < s.length; i++) { let j = i; while (s[j + 1] === s[j] + 1) j++; out.push(j > i ? `${s[i]}-${s[j]}` : `${s[i]}`); i = j; }
+  return out.join(', ');
+};
+// "1-3, 5" -> {1,2,3,5}, ignoring anything that isn't a page yet (the box is being typed in)
+const pagesIn = (str, n) => {
+  const set = new Set();
+  for (const part of str.split(',')) {
+    const m = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (m) for (let i = Math.max(1, +m[1]); i <= Math.min(n, +(m[2] || m[1])); i++) set.add(i);
+  }
+  return set;
+};
+const picker = { sel: new Set(), last: null, n: 0 };
+async function pickerInit(file, mode = 'keep') {
+  const box = $('o-picker'), input = $('o-ranges');
+  if (!box || !input) return;
+  const view = await openView(file);
+  Object.assign(picker, { n: view.numPages, last: null, sel: pagesIn(input.value, view.numPages) });
+  box.className = `picker ${mode}`;
+  box.innerHTML = `<div class="picker-bar"><span class="label">${mode === 'remove' ? 'Click the pages to remove' : 'Click pages to choose them'}. Shift-click picks a run.</span>
+    <div class="row">${[['all', 'All'], ['none', 'None'], ['odd', 'Odd'], ['even', 'Even']].map(([k, t]) => `<button type="button" class="chip" data-p="${k}">${t}</button>`).join('')}</div></div>
+    <div class="picks" id="o-picks"></div>`;
+  const grid = $('o-picks');
+  const paint = () => grid.querySelectorAll('[data-n]').forEach(b => { const on = picker.sel.has(+b.dataset.n); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  const sync = () => { input.value = rangesOf(picker.sel); paint(); };
+  input.oninput = () => { picker.sel = pagesIn(input.value, picker.n); paint(); };
+  box.querySelector('.picker-bar .row').onclick = e => {
+    const k = e.target.closest('[data-p]')?.dataset.p;
+    if (!k) return;
+    picker.sel = new Set(k === 'none' ? [] : Array.from({ length: picker.n }, (_, i) => i + 1).filter(p => k === 'all' || (k === 'odd') === (p % 2 === 1)));
+    sync();
+  };
+  grid.onclick = e => {
+    const b = e.target.closest('[data-n]');
+    if (!b) return;
+    const p = +b.dataset.n;
+    if (e.shiftKey && picker.last) {
+      const on = !picker.sel.has(p);
+      for (let i = Math.min(picker.last, p); i <= Math.max(picker.last, p); i++) on ? picker.sel.add(i) : picker.sel.delete(i);
+    } else picker.sel.has(p) ? picker.sel.delete(p) : picker.sel.add(p);
+    picker.last = p;
+    sync();
+  };
+  for (let i = 1; i <= view.numPages; i++) {
+    if (!grid.isConnected) return; // the user moved on to another file or tool
+    const w = (await view.getPage(i)).getViewport({ scale: 1 }).width;
+    const b = document.createElement('button');
+    Object.assign(b, { type: 'button', className: 'pick' });
+    b.dataset.n = i;
+    b.setAttribute('aria-label', `Page ${i}`);
+    b.innerHTML = `<span class="pick-img"></span><span class="pick-n mono">${i}</span><span class="pick-mark">${icon(mode === 'remove' ? 'x' : 'check')}</span>`;
+    b.firstChild.append(await renderPage(view, i, 200 / w));
+    grid.append(b);
+    paint();
+  }
+}
+// The pages a tool should work on: the box's pages, or every page when it's empty.
+const pagesOr = (n, all = true) => val('o-ranges').trim() || !all ? parseRanges(val('o-ranges'), n) : Array.from({ length: n }, (_, i) => i);
+
 /* ---------- The tools ---------- */
 const GROUPS = [['organize', 'Organize'], ['optimize', 'Optimize'], ['to', 'Convert to PDF'], ['from', 'Convert from PDF'], ['edit', 'Edit & sign'], ['security', 'Security']];
 const TOOLS = {
@@ -755,7 +827,11 @@ const TOOLS = {
     accept: PDF, btn: 'Split PDF', libs: ['pdflib'],
     options: () => row(
       sel('o-mode', 'How to split', [['pick', 'Chosen pages, as one PDF'], ['ranges', 'Each range as its own PDF'], ['every', 'Every page as its own PDF']]),
-      inp('o-ranges', 'Pages', 'placeholder="1-3, 5" inputmode="numeric"')) + hint('Several files download together as a .zip.'),
+      inp('o-ranges', 'Pages', 'placeholder="1-3, 5" inputmode="numeric"')) + PICKER + hint('Several files download together as a .zip.'),
+    async ready([f]) {
+      $('o-mode').onchange = () => $('o-picker').classList.toggle('hidden', val('o-mode') === 'every');
+      await pickerInit(f, 'keep');
+    },
     async run([f]) {
       const src = await openPdf(f), n = src.getPageCount(), mode = val('o-mode');
       const make = async idx => {
@@ -780,7 +856,8 @@ const TOOLS = {
     group: 'organize', name: 'Remove pages', icon: 'file-minus', keys: 'delete',
     desc: "Delete the pages you don't need.",
     accept: PDF, btn: 'Remove pages', libs: ['pdflib'],
-    options: () => inp('o-ranges', 'Pages to remove', 'placeholder="2, 7-9" inputmode="numeric"'),
+    options: () => inp('o-ranges', 'Pages to remove', 'placeholder="2, 7-9" inputmode="numeric"') + PICKER,
+    ready: ([f]) => pickerInit(f, 'remove'),
     async run([f]) {
       const doc = await openPdf(f), n = doc.getPageCount();
       const drop = [...new Set(parseRanges(val('o-ranges'), n))];
@@ -824,12 +901,14 @@ const TOOLS = {
   },
   rotate: {
     group: 'organize', name: 'Rotate PDF', icon: 'rotate-cw', keys: 'turn orientation',
-    desc: 'Turn every page a quarter or half turn.',
-    accept: PDF, btn: 'Rotate PDF', libs: ['pdflib'],
-    options: () => sel('o-angle', 'Turn pages', [['90', 'A quarter turn clockwise'], ['270', 'A quarter turn counter-clockwise'], ['180', 'Upside down']]),
+    desc: 'Turn all pages, or just the ones you pick, a quarter or half turn.',
+    accept: PDF, btn: 'Rotate PDF', libs: ['pdflib', 'pdfjs'], batch: true,
+    options: () => row(sel('o-angle', 'Turn pages', [['90', 'A quarter turn clockwise'], ['270', 'A quarter turn counter-clockwise'], ['180', 'Upside down']]),
+      inp('o-ranges', 'Pages (empty for all)', 'placeholder="All pages" inputmode="numeric"')) + PICKER,
+    ready: ([f]) => pickerInit(f, 'keep'),
     async run([f]) {
-      const doc = await openPdf(f), angle = +val('o-angle');
-      doc.getPages().forEach(p => p.setRotation(PDFLib.degrees(p.getRotation().angle + angle)));
+      const doc = await openPdf(f), angle = +val('o-angle'), pages = doc.getPages();
+      pagesOr(pages.length).forEach(i => pages[i].setRotation(PDFLib.degrees(pages[i].getRotation().angle + angle)));
       save(await doc.save(), `${stem(f)}-rotated.pdf`);
       return 'Rotated';
     },
@@ -838,7 +917,7 @@ const TOOLS = {
   compress: {
     group: 'optimize', name: 'Compress PDF', icon: 'shrink', keys: 'reduce shrink size smaller optimize', featured: true,
     desc: 'Make a PDF smaller for email and uploads.',
-    accept: PDF, btn: 'Compress PDF', libs: ['pdflib', 'pdfjs'],
+    accept: PDF, btn: 'Compress PDF', libs: ['pdflib', 'pdfjs'], batch: true,
     options: () => sel('o-level', 'Compression', [['medium', 'Recommended: good quality, much smaller'], ['strong', 'Strong: smallest file, lower quality'], ['light', 'Light: high quality, a little smaller'], ['lossless', 'Lossless: keeps text selectable, smallest saving']]) +
       hint('Except for lossless, pages are saved as images, so text can no longer be selected or searched.'),
     async run([f]) {
@@ -846,7 +925,7 @@ const TOOLS = {
       const out = level === 'lossless'
         ? await (await openPdf(f)).save({ useObjectStreams: true })
         : await rasterize(await openView(f), ...{ light: [150, .8], medium: [110, .65], strong: [72, .5] }[level]);
-      if (out.byteLength >= f.size) throw new UserError('This PDF is already compact. Compressing it would make it bigger, so nothing was saved. Try a stronger setting.');
+      if (out.byteLength > f.size * .98) throw new UserError('This PDF is already compact: compressing it saves almost nothing, so nothing was saved. Try a stronger setting.');
       save(out, `${stem(f)}-compressed.pdf`);
       return `Compressed from ${kb(f.size)} to ${kb(out.byteLength)}, ${Math.round(100 - out.byteLength / f.size * 100)}% smaller`;
     },
@@ -854,7 +933,7 @@ const TOOLS = {
   repair: {
     group: 'optimize', name: 'Repair PDF', icon: 'wrench', keys: 'fix broken corrupt damaged recover',
     desc: "Rescue a PDF that won't open or shows errors.",
-    accept: PDF, btn: 'Repair PDF', libs: ['pdflib'],
+    accept: PDF, btn: 'Repair PDF', libs: ['pdflib'], batch: true,
     async run([f]) {
       try {
         const doc = await PDFLib.PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true, throwOnInvalidObject: false });
@@ -927,7 +1006,7 @@ const TOOLS = {
   word2pdf: {
     group: 'to', name: 'Word to PDF', icon: 'file-text', keys: 'docx doc microsoft office',
     desc: 'Convert .docx documents, keeping headings, lists, tables and pictures. Complex layouts are simplified.',
-    accept: '.docx', drop: 'Drop a Word document here', note: '.docx files (Word 2007 or newer)',
+    accept: '.docx', drop: 'Drop Word documents here', note: '.docx files (Word 2007 or newer). Add several to convert them all.', batch: true,
     btn: 'Convert to PDF', libs: ['mammoth', 'jspdf'],
     async run([f]) {
       const { value: html } = await mammoth.convertToHtml({ arrayBuffer: await f.arrayBuffer() });
@@ -954,7 +1033,7 @@ const TOOLS = {
   excel2pdf: {
     group: 'to', name: 'Excel to PDF', icon: 'sheet', keys: 'xlsx xls csv ods spreadsheet sheet table',
     desc: 'Turn each sheet of a spreadsheet into a clean table. The first row becomes the header.',
-    accept: '.xlsx,.xls,.csv,.ods', drop: 'Drop a spreadsheet here', note: '.xlsx, .xls, .csv or .ods',
+    accept: '.xlsx,.xls,.csv,.ods', drop: 'Drop spreadsheets here', note: '.xlsx, .xls, .csv or .ods. Add several to convert them all.', batch: true,
     btn: 'Convert to PDF', libs: ['xlsx', 'jspdf', 'autotable'],
     async run([f]) {
       const wb = XLSX.read(await f.arrayBuffer());
@@ -996,14 +1075,15 @@ const TOOLS = {
 
   pdf2jpg: {
     group: 'from', name: 'PDF to images', icon: 'image', keys: 'jpg jpeg png picture export',
-    desc: 'Save every page as a JPG or PNG image.',
-    accept: PDF, btn: 'Convert to images', libs: ['pdfjs'],
-    options: () => row(sel('o-fmt', 'Format', [['jpeg', 'JPG'], ['png', 'PNG']]), sel('o-dpi', 'Quality', [['150', 'Standard (150 dpi)'], ['300', 'High (300 dpi)'], ['72', 'Small (72 dpi)']])) +
-      hint('Several pages download together as a .zip.'),
+    desc: 'Save every page, or the pages you pick, as JPG or PNG images.',
+    accept: PDF, btn: 'Convert to images', libs: ['pdfjs'], batch: true,
+    options: () => row(sel('o-fmt', 'Format', [['jpeg', 'JPG'], ['png', 'PNG']]), sel('o-dpi', 'Quality', [['150', 'Standard (150 dpi)'], ['300', 'High (300 dpi)'], ['72', 'Small (72 dpi)']]),
+      inp('o-ranges', 'Pages (empty for all)', 'placeholder="All pages" inputmode="numeric"')) + PICKER + hint('Several pages download together as a .zip.'),
+    ready: ([f]) => pickerInit(f, 'keep'),
     async run([f]) {
-      const view = await openView(f), fmt = val('o-fmt'), out = [];
-      for (let i = 1; i <= view.numPages; i++) {
-        progress(`Page ${i} of ${view.numPages}`, i / view.numPages);
+      const view = await openView(f), fmt = val('o-fmt'), out = [], pick = pagesOr(view.numPages).map(i => i + 1);
+      for (const [k, i] of pick.entries()) {
+        progress(`Page ${i} of ${view.numPages}`, (k + 1) / pick.length);
         const c = await renderPage(view, i, +val('o-dpi') / 72);
         out.push({ name: `${stem(f)}-${i}.${fmt === 'jpeg' ? 'jpg' : 'png'}`, data: await new Promise(r => c.toBlob(r, `image/${fmt}`, .9)) });
       }
@@ -1014,7 +1094,7 @@ const TOOLS = {
   pdf2word: {
     group: 'from', name: 'PDF to Word', icon: 'file-type', keys: 'docx doc editable microsoft', featured: true,
     desc: 'An editable .docx that keeps fonts, colours, pictures, tables and the page layout. Scanned pages are read with OCR.',
-    accept: PDF, btn: 'Convert to Word', libs: ['pdfjs', 'jszip'],
+    accept: PDF, btn: 'Convert to Word', libs: ['pdfjs', 'jszip'], batch: true,
     options: () => sel('o-layout', 'Layout', [['exact', 'Exact: looks just like the PDF, text stays editable'], ['flow', 'Flowing: real paragraphs and tables, easiest to edit']]) +
       row(check('o-ocr', 'Read text on scanned pages'), sel('o-lang', 'Scan language', OCR_LANGS)) +
       hint('Exact keeps every line where it was, over a picture of the page’s graphics. Flowing rebuilds headings, paragraphs, tables and pictures so text reflows as you edit.'),
@@ -1050,7 +1130,7 @@ const TOOLS = {
   pdf2ppt: {
     group: 'from', name: 'PDF to PowerPoint', icon: 'presentation', keys: 'pptx slides presentation keynote',
     desc: 'Put each page on its own slide, as a picture.',
-    accept: PDF, btn: 'Convert to PowerPoint', libs: ['pdfjs', 'pptx'],
+    accept: PDF, btn: 'Convert to PowerPoint', libs: ['pdfjs', 'pptx'], batch: true,
     async run([f]) {
       const view = await openView(f), pptx = new PptxGenJS();
       const vp = (await view.getPage(1)).getViewport({ scale: 1 }), W = vp.width / 72, H = vp.height / 72;
@@ -1058,9 +1138,10 @@ const TOOLS = {
       pptx.layout = 'PDF';
       for (let i = 1; i <= view.numPages; i++) {
         progress(`Page ${i} of ${view.numPages}`, i / view.numPages);
-        const c = await renderPage(view, i, 2), iw = c.width / 144, ih = c.height / 144, s = Math.min(W / iw, H / ih);
-        pptx.addSlide().addImage({ data: c.toDataURL('image/jpeg', .88), x: (W - iw * s) / 2, y: (H - ih * s) / 2, w: iw * s, h: ih * s });
+        const c = await renderPage(view, i, 1.6), iw = c.width / 115.2, ih = c.height / 115.2, s = Math.min(W / iw, H / ih);
+        pptx.addSlide().addImage({ data: c.toDataURL('image/jpeg', .85), x: (W - iw * s) / 2, y: (H - ih * s) / 2, w: iw * s, h: ih * s });
       }
+      progress('Packing the slides');
       save(await pptx.write({ outputType: 'blob' }), `${stem(f)}.pptx`);
       return 'Converted to PowerPoint';
     },
@@ -1068,7 +1149,7 @@ const TOOLS = {
   pdf2excel: {
     group: 'from', name: 'PDF to Excel', icon: 'table', keys: 'xlsx spreadsheet table data csv',
     desc: 'Tables land in real columns with real numbers. Scanned pages are read with OCR.',
-    accept: PDF, btn: 'Convert to Excel', libs: ['pdfjs', 'xlsx'],
+    accept: PDF, btn: 'Convert to Excel', libs: ['pdfjs', 'xlsx'], batch: true,
     options: () => sel('o-sheets', 'Sheets', [['page', 'One sheet per page'], ['one', 'Everything on one sheet']]) +
       row(check('o-ocr', 'Read text on scanned pages'), sel('o-lang', 'Scan language', OCR_LANGS)) +
       hint('Numbers like 1,200, (3.50), $12 and 15% become values you can add up, with their formatting kept.'),
@@ -1129,35 +1210,106 @@ const TOOLS = {
     },
   },
   edittext: {
-    group: 'edit', name: 'Add text', icon: 'text-cursor-input', keys: 'edit write type fill form annotate date', wide: true,
-    desc: 'Type onto a PDF to fill in forms, add notes or date a document.',
-    accept: PDF, btn: 'Save PDF', libs: ['pdflib', 'pdfjs'],
-    options: () => inp('o-text', 'Text to add', 'placeholder="Your text"') +
-      row(sel('o-size', 'Size', [['12', '12 pt'], ['10', '10 pt'], ['14', '14 pt'], ['18', '18 pt'], ['24', '24 pt']]),
-        sel('o-color', 'Colour', [['black', 'Black'], ['blue', 'Blue'], ['red', 'Red']])) +
-      `${STAGE}${hint('Click where the text should start. Click placed text to remove it.')}`,
+    group: 'edit', name: 'Edit PDF', icon: 'edit', keys: 'edit change text modify correct typo fix write type add annotate date whiteout white out erase', wide: true,
+    desc: 'Change the existing text, add new text, or white out what you don’t want.',
+    accept: PDF, btn: 'Save edited PDF', libs: ['pdflib', 'pdfjs'],
+    options: () => `<div class="seg" role="group" aria-label="What to do" id="o-emode">
+        <button type="button" class="seg-btn" data-m="edit" aria-pressed="true">${icon('edit')}Edit text</button>
+        <button type="button" class="seg-btn" data-m="point" aria-pressed="false">${icon('text-aa')}Add text</button>
+        <button type="button" class="seg-btn" data-m="white" aria-pressed="false">${icon('eraser')}White out</button></div>
+      <div id="o-addopts" class="options-sub hidden">${inp('o-text', 'Text to add', 'placeholder="Your text"')}${row(sel('o-size', 'Size', [['12', '12 pt'], ['10', '10 pt'], ['14', '14 pt'], ['18', '18 pt'], ['24', '24 pt']]),
+        sel('o-color', 'Colour', [['black', 'Black'], ['blue', 'Blue'], ['red', 'Red']]))}</div>
+      ${STAGE}<p class="hint" id="o-ehint"></p>
+      ${hint('Changed words are painted over, not deleted from the file. To remove sensitive text for good, use Redact PDF.')}`,
     async ready([f]) {
-      await stageInit(f, 'point', a => {
+      const hints = { edit: 'Click any line of text to change it. Press Enter when done, or Esc to undo. Empty a line to delete it.', point: 'Type your text above, then click where it should start. Click placed text to remove it.', white: 'Drag over anything to cover it with the page colour. Click a box to remove it.' };
+      const setMode = m => {
+        stage.mode = m;
+        document.querySelectorAll('#o-emode [data-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+        $('o-addopts').classList.toggle('hidden', m !== 'point');
+        $('o-ehint').textContent = hints[m];
+        drawMarks();
+      };
+      $('o-emode').onclick = e => { const b = e.target.closest('[data-m]'); if (b) setMode(b.dataset.m); };
+      stage.editable = true;
+      await stageInit(f, 'edit', a => {
         const text = val('o-text').trim();
         if (!text) throw new UserError('Type the text to add first.');
         return { kind: 'text', text, size: +val('o-size'), color: val('o-color'), x: a.x, y: a.y };
       });
+      setMode('edit');
     },
     async run([f]) {
-      if (!stage.marks.length) throw new UserError('Click the page to place your text first.');
-      const doc = await openPdf(f), pages = doc.getPages(), font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+      if (!stage.marks.length) throw new UserError('Make a change first: click a line to edit it, or switch to Add text or White out.');
+      const doc = await openPdf(f), pages = doc.getPages(), fonts = {};
+      const fontFor = (family = '', bold, italic) => {
+        const base = /times|serif|georgia|garamond|cambria|palatino|book/i.test(family) ? 'TimesRoman' : /courier|mono|consolas/i.test(family) ? 'Courier' : 'Helvetica';
+        const name = base + (bold ? 'Bold' : '') + (italic ? (base === 'TimesRoman' ? 'Italic' : 'Oblique') : '');
+        return fonts[name] ??= doc.embedFont(PDFLib.StandardFonts[name]);
+      };
+      const hex = h => PDFLib.rgb(...[0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255));
+      const cover = (p, x0, top, x1, bottom, color) => {
+        const fr = frame(p), a = fr.at(x0, top), b = fr.at(x1, bottom);
+        p.drawRectangle({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y), color });
+      };
       for (const m of stage.marks) {
         const p = pages[m.page - 1], fr = frame(p);
-        drawLabel(p, m.text, m.x * fr.w, m.y * fr.h + m.size * .8, { font, size: m.size, color: PDFLib.rgb(...COLORS[m.color]) });
+        if (m.kind === 'text') drawLabel(p, m.text, m.x * fr.w, m.y * fr.h + m.size * .8, { font: await fontFor(), size: m.size, color: PDFLib.rgb(...COLORS[m.color]) });
+        if (m.kind === 'white') cover(p, m.x * fr.w, m.y * fr.h, (m.x + m.w) * fr.w, (m.y + m.h) * fr.h, hex(m.bg || 'FFFFFF'));
+        if (m.kind === 'edit') {
+          const s = m.seg;
+          cover(p, s.x0 - 1, s.top - 1, s.x1 + 1.5, s.bottom + 1, hex(s.bg));
+          if (m.text.trim()) drawLabel(p, m.text, s.x0, s.base, { font: await fontFor(s.family, s.bold, s.italic), size: s.size, color: hex(s.color) });
+        }
       }
       save(await doc.save(), `${stem(f)}-edited.pdf`);
-      return 'PDF saved';
+      return 'Edited PDF saved';
+    },
+  },
+  fillform: {
+    group: 'edit', name: 'Fill in a form', icon: 'form', keys: 'form fields fill acroform checkbox tick application',
+    desc: 'Type into a PDF form’s fields, tick its boxes and choose its options, then save it, or flatten it so it can’t be changed.',
+    accept: PDF, btn: 'Save filled form', libs: ['pdflib'],
+    options: () => `<div id="o-form" class="form-fields"><p class="hint">Reading the form…</p></div>` + check('o-flatten', 'Flatten: make the answers part of the page, so they can’t be changed', false),
+    async ready([f]) {
+      const fields = (await openPdf(f)).getForm().getFields(), L = PDFLib, box = $('o-form');
+      formFields = fields.map(fl => fl.getName());
+      $('o-flatten').closest('.switch').classList.toggle('hidden', !fields.length);
+      if (!fields.length) { box.innerHTML = hint('This PDF has no fillable fields. Use Edit PDF to type onto it instead.'); return; }
+      const label = n => esc(n.replace(/[._]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim());
+      box.innerHTML = `<p class="label">${plural(fields.length, 'field')} in this form</p>` + fields.map((fl, i) => {
+        const id = `ff-${i}`, name = label(fl.getName());
+        if (fl instanceof L.PDFTextField) return fl.isMultiline()
+          ? `<label class="field"><span class="field-label">${name}</span><textarea id="${id}" class="input">${esc(fl.getText() || '')}</textarea></label>`
+          : `<label class="field"><span class="field-label">${name}</span><input id="${id}" class="input" value="${esc(fl.getText() || '')}"${fl.getMaxLength() ? ` maxlength="${fl.getMaxLength()}"` : ''}></label>`;
+        if (fl instanceof L.PDFCheckBox) return check(id, name, fl.isChecked());
+        if (fl instanceof L.PDFDropdown || fl instanceof L.PDFOptionList || fl instanceof L.PDFRadioGroup) {
+          const opts = fl.getOptions(), cur = fl instanceof L.PDFRadioGroup ? fl.getSelected() : fl.getSelected()[0];
+          return `<label class="field"><span class="field-label">${name}</span><span class="select-wrap"><select id="${id}" class="input"><option value="">(none)</option>${opts.map(o => `<option${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></span></label>`;
+        }
+        return `<p class="hint">${name}: a ${fl instanceof L.PDFSignature ? 'signature' : 'button'} field. Use Sign PDF for signatures.</p>`;
+      }).join('');
+    },
+    async run([f]) {
+      const doc = await openPdf(f), form = doc.getForm(), L = PDFLib;
+      if (!form.getFields().length) throw new UserError('This PDF has no fillable fields. Use Edit PDF to type onto it instead.');
+      formFields.forEach((name, i) => {
+        const el = $(`ff-${i}`), fl = form.getField(name);
+        if (!el) return;
+        if (fl instanceof L.PDFTextField) fl.setText(el.value || undefined);
+        else if (fl instanceof L.PDFCheckBox) el.checked ? fl.check() : fl.uncheck();
+        else if (fl instanceof L.PDFRadioGroup) el.value ? fl.select(el.value) : fl.clear();
+        else if (fl instanceof L.PDFDropdown || fl instanceof L.PDFOptionList) el.value ? fl.select(el.value) : fl.clear();
+      });
+      if ($('o-flatten').checked) form.flatten();
+      save(await doc.save(), `${stem(f)}-filled.pdf`);
+      return $('o-flatten').checked ? 'Form filled and flattened' : 'Form filled';
     },
   },
   numbers: {
     group: 'edit', name: 'Add page numbers', icon: 'list-ordered', keys: 'paginate numbering footer',
     desc: 'Number every page, in the position and style you choose.',
-    accept: PDF, btn: 'Add page numbers', libs: ['pdflib'],
+    accept: PDF, btn: 'Add page numbers', libs: ['pdflib'], batch: true,
     options: () => row(
       sel('o-pos', 'Position', [['bottom-center', 'Bottom center'], ['bottom-right', 'Bottom right'], ['bottom-left', 'Bottom left'], ['top-center', 'Top center'], ['top-right', 'Top right'], ['top-left', 'Top left']]),
       sel('o-fmt', 'Style', [['n', '1'], ['page', 'Page 1'], ['of', 'Page 1 of 9'], ['slash', '1 / 9']]),
@@ -1178,7 +1330,7 @@ const TOOLS = {
   watermark: {
     group: 'edit', name: 'Add watermark', icon: 'stamp', keys: 'stamp draft confidential',
     desc: 'Stamp text such as DRAFT or CONFIDENTIAL across every page.',
-    accept: PDF, btn: 'Add watermark', libs: ['pdflib'],
+    accept: PDF, btn: 'Add watermark', libs: ['pdflib'], batch: true,
     options: () => inp('o-text', 'Watermark text', 'value="CONFIDENTIAL"') + row(
       sel('o-angle', 'Direction', [['diag', 'Diagonal'], ['flat', 'Horizontal']]),
       sel('o-color', 'Colour', [['grey', 'Grey'], ['red', 'Red'], ['blue', 'Blue']]),
@@ -1243,7 +1395,7 @@ const TOOLS = {
   protect: {
     group: 'security', name: 'Protect PDF', icon: 'lock-keyhole', keys: 'password encrypt lock secure',
     desc: 'Add a password that is needed to open the file. Uses AES-256 encryption.',
-    accept: PDF, btn: 'Protect PDF', libs: ['pdflib'],
+    accept: PDF, btn: 'Protect PDF', libs: ['pdflib'], batch: true,
     options: () => row(inp('o-pw', 'Password', 'type="password" autocomplete="new-password"'), inp('o-pw2', 'Repeat password', 'type="password" autocomplete="new-password"')) +
       hint('Keep this password safe. Nobody, including NebulaPDF, can recover it.'),
     async run([f]) {
@@ -1259,7 +1411,7 @@ const TOOLS = {
   unlock: {
     group: 'security', name: 'Unlock PDF', icon: 'lock-keyhole-open', keys: 'password decrypt remove security unprotect',
     desc: 'Remove the password from a PDF you have the password for.',
-    accept: PDF, btn: 'Unlock PDF', libs: ['pdflib'],
+    accept: PDF, btn: 'Unlock PDF', libs: ['pdflib'], batch: true,
     options: () => inp('o-pw', 'Current password', 'type="password" autocomplete="current-password"') +
       hint('Leave this blank if the PDF opens without a password but blocks printing or copying.'),
     async run([f]) {
@@ -1343,9 +1495,11 @@ function drawThumbs() {
 }
 
 /* ---------- Page stage: shows one page; click or drag to place marks ---------- */
-const stage = { view: null, page: 1, marks: [], size: { w: 1, h: 1 }, mode: 'point', place: null };
+let formFields = [];
+const stage = { view: null, page: 1, marks: [], size: { w: 1, h: 1 }, mode: 'point', place: null, editable: false, lines: {} };
 async function stageInit(file, mode, place) {
-  Object.assign(stage, { view: await openView(file), page: 1, marks: [], mode, place });
+  Object.assign(stage, { view: await openView(file), page: 1, marks: [], mode, place, lines: {} });
+  stage.editable = currentTool === 'edittext'; // only Edit PDF makes the page's own text clickable
   $('stage-page').onpointerdown = stageDown;
   await stageRender();
 }
@@ -1358,19 +1512,74 @@ async function stageRender() {
   el.prepend(c);
   el.style.setProperty('--pt', `${el.clientWidth / vp.width}px`);
   $('stage-label').textContent = `Page ${n} of ${stage.view.numPages}`;
+  if (stage.editable && !stage.lines[n]) stage.lines[n] = await editLines(n, c, vp);
   drawMarks();
 }
 function stageGo(d) {
   const n = Math.min(stage.view.numPages, Math.max(1, stage.page + d));
   if (n !== stage.page) { stage.page = n; stageRender(); }
 }
+// The lines of text on a page, with their font, size, colour and the colour behind them, ready to be edited.
+async function editLines(n, canvas, vp) {
+  const pg = await analyzePage(stage.view, n, { fonts: true }), S = canvas.width / vp.width;
+  const img = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height), hexOf = c => c.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  return toLines(pg.items).flatMap(l => l.segs).map(s => {
+    const it = s.items[0], box = [Math.max(0, Math.floor(s.x0 * S)), Math.max(0, Math.floor(s.top * S)), Math.min(canvas.width, Math.ceil(s.x1 * S)), Math.min(canvas.height, Math.ceil(s.bottom * S))];
+    return { page: n, x0: s.x0, x1: s.x1, top: s.top, bottom: s.bottom, base: s.base, size: s.size, text: s.text, family: it.family, bold: it.bold, italic: it.italic,
+      color: inkColor(img, S, s), bg: box[2] > box[0] && box[3] > box[1] ? hexOf(dominant(img, ...box, 1)) : 'FFFFFF', W: vp.width, H: vp.height };
+  });
+}
+const cssFont = s => `${s.italic ? 'italic ' : ''}${s.bold ? '700 ' : ''}calc(var(--pt) * ${s.size}) / 1.2 ${/times|serif|georgia|garamond|cambria|palatino|book/i.test(s.family) ? 'Times, "Times New Roman", serif' : /courier|mono/i.test(s.family) ? '"Courier New", monospace' : 'Helvetica, Arial, sans-serif'}`;
+const place = (d, s) => Object.assign(d.style, { left: `${s.x0 / s.W * 100}%`, top: `${(s.base - s.size * .96) / s.H * 100}%`, minWidth: `${(s.x1 - s.x0) / s.W * 100}%`, font: cssFont(s), color: `#${s.color}`, background: `#${s.bg}` });
+function startEdit(s) {
+  const mark = stage.marks.find(m => m.kind === 'edit' && m.seg === s), d = document.createElement('div');
+  d.className = 'edit-box';
+  try { d.contentEditable = 'plaintext-only'; } catch { d.contentEditable = 'true'; } // older browsers only know true
+  d.spellcheck = false;
+  d.textContent = mark ? mark.text : s.text;
+  place(d, s);
+  $('stage-marks').append(d);
+  d.focus();
+  getSelection().selectAllChildren(d);
+  let done = false;
+  const finish = keep => {
+    if (done) return;
+    done = true;
+    const text = d.textContent.replace(/\s+/g, ' ').trim();
+    stage.marks = stage.marks.filter(m => m !== mark);
+    if (keep && text !== s.text) stage.marks.push({ kind: 'edit', page: s.page, seg: s, text });
+    drawMarks();
+  };
+  d.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } if (e.key === 'Escape') finish(false); };
+  d.onblur = () => finish(true);
+  d.onpointerdown = e => e.stopPropagation();
+}
 function drawMarks() {
-  $('stage-marks').replaceChildren(...stage.marks.filter(m => m.all || m.page === stage.page).map(m => {
+  const edits = new Set(stage.marks.filter(m => m.kind === 'edit').map(m => m.seg));
+  const lines = stage.editable && stage.mode === 'edit' ? (stage.lines[stage.page] || []).filter(s => !edits.has(s)).map(s => {
+    const d = document.createElement('div');
+    d.className = 'edit-line';
+    Object.assign(d.style, { left: `${s.x0 / s.W * 100}%`, top: `${s.top / s.H * 100}%`, width: `${(s.x1 - s.x0) / s.W * 100}%`, height: `${(s.bottom - s.top) / s.H * 100}%` });
+    d.title = 'Click to edit';
+    d.dataset.cursor = 'text';
+    d.onpointerdown = e => { e.stopPropagation(); e.preventDefault(); startEdit(s); };
+    return d;
+  }) : [];
+  $('stage-marks').replaceChildren(...lines, ...stage.marks.filter(m => m.all || m.page === stage.page).map(m => {
     const d = document.createElement('div');
     d.className = `mark mark-${m.kind}`;
     Object.assign(d.style, { left: `${m.x * 100}%`, top: `${m.y * 100}%` }, m.w && { width: `${m.w * 100}%`, height: `${m.h * 100}%` });
     if (m.kind === 'sign') d.innerHTML = `<img src="${m.img}" alt="Signature">`;
     if (m.kind === 'text') Object.assign(d.style, { fontSize: `calc(var(--pt) * ${m.size})`, color: `rgb(${COLORS[m.color].map(v => v * 255)})` }), d.textContent = m.text;
+    if (m.kind === 'white') d.style.background = `#${m.bg || 'FFFFFF'}`;
+    if (m.kind === 'edit') {
+      place(d, m.seg);
+      d.textContent = m.text || ' ';
+      d.dataset.cursor = 'text';
+      d.title = 'Click to change again';
+      d.onpointerdown = e => { e.stopPropagation(); e.preventDefault(); startEdit(m.seg); };
+      return d;
+    }
     if (m.kind !== 'crop') { d.dataset.cursor = 'remove'; d.onpointerdown = e => { e.stopPropagation(); stage.marks.splice(stage.marks.indexOf(m), 1); drawMarks(); }; }
     return d;
   }));
@@ -1379,6 +1588,7 @@ function stageDown(e) {
   const el = $('stage-page'), box = el.getBoundingClientRect();
   const pt = ev => ({ x: Math.min(1, Math.max(0, (ev.clientX - box.left) / box.width)), y: Math.min(1, Math.max(0, (ev.clientY - box.top) / box.height)) });
   const a = pt(e);
+  if (stage.mode === 'edit') return; // lines are clicked directly
   if (stage.mode === 'point') {
     try { stage.marks.push({ page: stage.page, ...stage.place(a) }); drawMarks(); } catch (err) { showToast(err.message, true); }
     return;
@@ -1395,6 +1605,10 @@ function stageDown(e) {
   el.onpointerup = () => {
     el.onpointermove = el.onpointerup = null;
     if (m.w < .01 || m.h < .01) stage.marks.splice(stage.marks.indexOf(m), 1);
+    else if (m.kind === 'white') { // cover with the colour that's most common under the box
+      const c = el.querySelector('canvas'), b = [m.x * c.width, m.y * c.height, (m.x + m.w) * c.width, (m.y + m.h) * c.height].map(Math.round);
+      m.bg = dominant(c.getContext('2d').getImageData(0, 0, c.width, c.height), ...b, 2).map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
     drawMarks();
   };
 }

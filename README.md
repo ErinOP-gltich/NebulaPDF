@@ -6,7 +6,7 @@
 
 **Zero uploads. Zero servers.**
 
-NebulaPDF is a suite of 24 PDF tools that runs entirely in your browser. Your documents are processed on your device; no file is ever uploaded. Each tool loads the open-source library it needs the first time you use it.
+NebulaPDF is a suite of 25 PDF tools that runs entirely in your browser. Your documents are processed on your device; no file is ever uploaded. Each tool loads the open-source library it needs the first time you use it, and the whole app can be installed and used offline.
 
 🌍 **Live Output:** [nebula-pdf.vercel.app](https://nebula-pdf.vercel.app)
 
@@ -20,8 +20,20 @@ NebulaPDF is a suite of 24 PDF tools that runs entirely in your browser. Your do
 | Optimize | Compress PDF (lossless or image-based), Repair PDF, Read text (OCR, images and scanned PDFs) |
 | Convert to PDF | Images to PDF, Word to PDF, Excel to PDF, Text to PDF |
 | Convert from PDF | PDF to images (JPG/PNG), PDF to Word, PDF to PowerPoint, PDF to Excel |
-| Edit & sign | Sign PDF, Add text, Add page numbers, Add watermark, Crop PDF, Redact PDF |
+| Edit & sign | Sign PDF, Edit PDF (change existing text, add text, white out), Fill in a form, Add page numbers, Add watermark, Crop PDF, Redact PDF |
 | Security | Protect PDF (AES-256), Unlock PDF |
+
+**Batch:** Rotate, Compress, Repair, Word to PDF, Excel to PDF, PDF to images, PDF to Word, PDF to PowerPoint, PDF to Excel, page numbers, watermark, Protect and Unlock take many files at once and return one zip, with a ✓ or ✕ and the reason for each file.
+
+**Page picking:** Split, Remove pages, Rotate and PDF to images show every page as a thumbnail to click (Shift-click picks a run; All, None, Odd and Even shortcuts), kept in step with the page-range box. The result's first page is previewed beside the tool.
+
+**Edit PDF:** click any line of existing text to retype it. It keeps its font style (bold, italic, serif, sans or mono), size and colour, on a patch of its own background colour. You can also add new text or white out areas. Changed words are painted over rather than removed from the file; Redact PDF removes text for good.
+
+**Fill in a form:** fills a PDF's text fields, checkboxes, dropdowns, lists and radio buttons, and can flatten the answers into the page.
+
+**Works offline:** a service worker (`sw.js`) keeps the site and every tool library on the device after first use; "Save tools for offline use" (in the Privacy section) fetches them all at once. Text recognition works offline once it has been used online for that language. The app can be installed (`manifest.webmanifest`), and the installed app can open PDFs from your files.
+
+**Downloads:** browsers only let a page start a download by itself for a few seconds after your last click. When a job takes longer (PDF to PowerPoint on a long PDF, a big batch), NebulaPDF doesn't try and get silently blocked: the result panel's Download button asks for that one click.
 
 Drop any file anywhere on the home page and NebulaPDF suggests the tools that fit. After a tool finishes, its result can go straight into the next tool. Press `⌘K`, `Ctrl+K` or `/` to search tools from anywhere.
 
@@ -37,14 +49,14 @@ Both read each page's layout, not just its text (`analyzePage` in `assets/engine
 
 PDF to Word has two layouts:
 
-* **Exact** (default): every page becomes a Word page of the same size. The page's graphics sit behind as one picture whose paper is see-through, so it suits Word's light and dark modes, and every line of text is an editable, positioned paragraph in its original font, size and colour.
+* **Exact** (default): every page becomes a Word page of the same size. The page's graphics sit behind as one picture whose paper is see-through, so it suits Word's light and dark modes, and every line of text is an editable text box at its exact place, in its original font, size and colour. Text boxes (not Word's older "frames") so that Pages, LibreOffice and Google Docs place them correctly too; checked in Microsoft Word and Pages.
 * **Flowing**: real paragraphs (lines joined, hyphenated words mended, alignment and indents kept), headings as Word heading styles, real Word tables, and pictures in reading order, side by side where they were. Best when you'll rewrite the text.
 
 PDF to Excel puts tables into real columns and turns `1,200`, `(3.50)`, `$12` and `15%` into numbers with matching number formats, one sheet per page or all on one sheet.
 
 **Not included**, because they need a server or a rendering engine the browser doesn't have: PowerPoint to PDF, HTML/URL to PDF, PDF/A conversion, PDF compare, and AI translate/summarize.
 
-**Known limits:** image-based compression, Repair's fallback and Redact turn the affected pages into images. Rotated (vertical) text in PDF to Word stays part of the page picture in Exact layout and is left out of Flowing layout. Text added with Add text, page numbers and watermarks uses the built-in Helvetica font, so it supports Latin characters only.
+**Known limits:** image-based compression, Repair's fallback and Redact turn the affected pages into images. Rotated (vertical) text in PDF to Word stays part of the page picture in Exact layout and is left out of Flowing layout. Text written by Edit PDF, page numbers and watermarks uses the standard PDF fonts (Helvetica, Times, Courier), so it supports Latin characters only, and edited lines take the closest of those fonts rather than the original.
 
 ## 🎨 Design: "Deep Field"
 
@@ -54,7 +66,9 @@ Named after long-exposure space photographs. Dark by default with a light theme 
 * **Type:** Instrument Serif for the headlines, Instrument Sans (its sister face) for text and controls, Geist Mono for file details. The scrolling format strip uses Anybody.
 * **Icons:** Phosphor duotone, inlined in `assets/icons.js`; the soft layer takes the accent colour.
 * **Hero:** a canvas night sky. Stars bend around the pointer like light around a mass, pages orbit the drop well and spiral into it while a file is dragged over the window, and the headline's letters lean and warm as the pointer passes.
-* **Surfaces:** glass cards with a light and rim that follow the pointer, small tight shadows, ripples on buttons, and a custom cursor (a dot plus a trailing ring that grows over controls, shows "Open"/"Drop" over drop zones and becomes a crosshair over pages you draw on).
+* **Blueprint frame** (inspired by getartcraft.com): hairline rails at the content edges, ruled section bars ("01 / The tools") with crosshair marks, a full-width ruled nav with an inverted active item, a scroll ruler with a percentage and a section index on wide screens, and thin coloured orbit arcs in the hero.
+* **Tool cards:** hairline cells, each with a numbered badge in its group's colour, the group name, format tags (PDF → DOCX, Batch, OCR) and an "Open tool" row; the four most used tools have larger cells with an illustration panel. Squared buttons and chips with small uppercase monospace labels.
+* **Surfaces:** a light that follows the pointer over the cards, small tight shadows, ripples on buttons, and a custom cursor (a dot plus a trailing ring that grows over controls, shows "Open"/"Drop" over drop zones and becomes a crosshair over pages you draw on).
 * **Motion** switches off with the system's reduce-motion setting, or with **Pause motion** in the footer.
 
 ## 🛠️ Press Components
@@ -66,8 +80,9 @@ Plain HTML, CSS and JavaScript, no build step:
 | `index.html` | The page |
 | `assets/nebula.css` | Design tokens (both themes) and every component |
 | `assets/app.js` | Theme, cursor, hero sky, tool grid, search, file routing and the tool screen |
-| `assets/engine.js` | Library loading, PDF helpers, layout analysis, the Word/Excel writers and the 24 tools |
+| `assets/engine.js` | Library loading, PDF helpers, layout analysis, the Word/Excel writers and the 25 tools |
 | `assets/icons.js` | The icons |
+| `sw.js`, `manifest.webmanifest`, `assets/app-icons/` | Offline use and installing as an app |
 
 Libraries load from CDNs on demand:
 
