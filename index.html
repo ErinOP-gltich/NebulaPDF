@@ -1,773 +1,164 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NebulaPDF | Press & Bindery</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        paper: '#F5F2EB',
-                        ink: '#16140F',
-                        cyan: '#0B7FA8',
-                        vermilion: '#C8472E',
-                        graphite: '#6B6459',
-                        'print-c': '#00A3E0',
-                        'print-m': '#E6007E',
-                        'print-y': '#FFF200',
-                    },
-                    fontFamily: {
-                        display: ['"Space Grotesk"', 'sans-serif'],
-                        mono: ['"IBM Plex Mono"', 'monospace'],
-                    },
-                    boxShadow: {
-                        'press': '6px 6px 0px 0px #16140F',
-                        'press-sm': '3px 3px 0px 0px #16140F',
-                        'press-hover': '2px 2px 0px 0px #16140F',
-                        'press-active': '0px 0px 0px 0px #16140F',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-        
-        body {
-            background-color: #F5F2EB;
-            color: #16140F;
-            overflow-x: hidden;
-            background-image: 
-                radial-gradient(#6B6459 0.75px, transparent 0.75px),
-                radial-gradient(#6B6459 0.75px, #F5F2EB 0.75px);
-            background-size: 24px 24px;
-            background-position: 0 0, 12px 12px;
-            background-attachment: fixed;
-            box-shadow: inset 0 0 0 100vw rgba(245, 242, 235, 0.88);
-        }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #F5F2EB; border-left: 1px solid #16140F; }
-        ::-webkit-scrollbar-thumb { background: #16140F; border-left: 1px solid #16140F; }
-
-        /* Print Shop Motifs */
-        .crop-marks { position: relative; }
-        .crop-marks::before, .crop-marks::after {
-            content: ''; position: absolute;
-            pointer-events: none; z-index: -1;
-        }
-        .crop-marks::before {
-            top: -12px; left: -12px;
-            width: calc(100% + 24px); height: calc(100% + 24px);
-            border-top: 1px solid #16140F; border-bottom: 1px solid #16140F;
-        }
-        .crop-marks::after {
-            top: -12px; left: -12px;
-            width: calc(100% + 24px); height: calc(100% + 24px);
-            border-left: 1px solid #16140F; border-right: 1px solid #16140F;
-        }
-
-        @media (min-width: 768px) {
-            .crop-marks::before { top: -16px; left: -16px; width: calc(100% + 32px); height: calc(100% + 32px); }
-            .crop-marks::after { top: -16px; left: -16px; width: calc(100% + 32px); height: calc(100% + 32px); }
-        }
-
-        .reg-target {
-            display: inline-block;
-            width: 20px; height: 20px;
-            position: relative;
-            vertical-align: middle;
-        }
-        @media (min-width: 768px) { .reg-target { width: 24px; height: 24px; } }
-
-        .reg-target::before {
-            content: ''; position: absolute;
-            top: 50%; left: -4px; right: -4px;
-            height: 1px; background: #16140F;
-        }
-        .reg-target::after {
-            content: ''; position: absolute;
-            left: 50%; top: -4px; bottom: -4px;
-            width: 1px; background: #16140F;
-        }
-        .reg-target .circle {
-            position: absolute;
-            top: 3px; left: 3px; right: 3px; bottom: 3px;
-            border: 1.5px solid #16140F;
-            border-radius: 50%;
-        }
-
-        .barcode {
-            background-image: repeating-linear-gradient(
-                to right,
-                #16140F 0, #16140F 2px,
-                transparent 2px, transparent 4px,
-                #16140F 4px, #16140F 5px,
-                transparent 5px, transparent 7px,
-                #16140F 7px, #16140F 10px,
-                transparent 10px, transparent 12px
-            );
-        }
-
-        /* Press UI Elements */
-        .btn-press {
-            background: #F5F2EB;
-            border: 2px solid #16140F;
-            box-shadow: 4px 4px 0px 0px #16140F;
-            transition: all 0.1s ease-out;
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
-        }
-        .btn-press:hover:not(:disabled) {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0px 0px #16140F;
-            background: #0B7FA8;
-            color: #F5F2EB;
-        }
-        .btn-press:active:not(:disabled) {
-            transform: translate(4px, 4px);
-            box-shadow: 0px 0px 0px 0px #16140F;
-        }
-        .btn-press:disabled {
-            opacity: 0.5; cursor: not-allowed;
-            box-shadow: none; transform: translate(4px, 4px);
-        }
-
-        .card-press {
-            background: #F5F2EB;
-            border: 2px solid #16140F;
-            box-shadow: 4px 4px 0px 0px #16140F;
-            transition: all 0.15s ease-out;
-        }
-        @media (min-width: 768px) { .card-press { box-shadow: 6px 6px 0px 0px #16140F; } }
-
-        .card-press:hover {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0px 0px #16140F;
-            border-color: #0B7FA8;
-        }
-        .card-press:hover .card-icon { color: #0B7FA8; transform: scale(1.1); }
-
-        .input-press {
-            background: #F5F2EB;
-            border: 2px solid #16140F;
-            font-family: 'IBM Plex Mono', monospace;
-            box-shadow: inset 3px 3px 0px 0px rgba(22, 20, 15, 0.05);
-            transition: all 0.2s ease;
-        }
-        .input-press:focus {
-            outline: none;
-            border-color: #0B7FA8;
-            background: #ffffff;
-            box-shadow: inset 3px 3px 0px 0px rgba(11, 127, 168, 0.1);
-        }
-
-        .spinner {
-            border: 2.5px solid #16140F;
-            border-left-color: transparent;
-            border-radius: 50%;
-            width: 18px; height: 18px;
-            animation: spin 0.8s linear infinite;
-            display: inline-block;
-            vertical-align: middle;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NebulaPDF</title>
+<meta name="description" content="24 PDF tools that run entirely in your browser. Merge, compress, convert to Word and Excel, sign and protect PDFs without uploading them.">
+<meta name="theme-color" content="#05060A">
+<script>
+  // Theme and motion before first paint, so the page never flashes the wrong theme.
+  (function () {
+    var r = document.documentElement, t, c;
+    try { t = localStorage.getItem('nebula-theme'); c = localStorage.getItem('nebula-calm'); } catch (e) {}
+    r.dataset.theme = t || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    r.classList.add('js');
+    if (c === '1') r.classList.add('calm');
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400..600&family=Anybody:wdth,wght@130,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/nebula.css?v=7">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF5A6E'/%3E%3Cstop offset='.5' stop-color='%23FFB547'/%3E%3Cstop offset='1' stop-color='%232FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%2305060A'/%3E%3Cellipse cx='16' cy='16' rx='12.5' ry='5' fill='none' stroke='url(%23g)' stroke-width='2.2' transform='rotate(-28 16 16)'/%3E%3Cpath d='M12 8.5h6l3.5 3.5v11.5H12z' fill='%23EEF0F7'/%3E%3C/svg%3E">
 </head>
-<body class="min-h-screen flex flex-col font-display text-ink">
+<body>
+  <a class="skip" href="#main">Skip to content</a>
 
-    <nav class="w-full h-16 border-b-2 border-ink bg-paper sticky top-0 z-50 shadow-sm">
-        <div class="container mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
-            <div class="flex items-center space-x-2 sm:space-x-3 cursor-pointer" onclick="showView('dashboard')">
-                <div class="reg-target"><div class="circle"></div></div>
-                <span class="text-xl sm:text-2xl font-bold tracking-tighter uppercase mt-1">NebulaPDF</span>
+  <header class="nav">
+    <a class="brand" href="#" onclick="event.preventDefault(); goHome()" aria-label="NebulaPDF home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5A6E"/><stop offset=".5" stop-color="#FFB547"/><stop offset="1" stop-color="#2FE0D0"/></linearGradient></defs>
+        <path d="M11 7h7.2l4 4V25H11z" fill="currentColor"/><path d="M18 7v4.4h4.2" fill="none" stroke="var(--bg)" stroke-width="1.4"/>
+        <ellipse cx="16" cy="16" rx="14" ry="5.4" fill="none" stroke="url(#bm)" stroke-width="2.2" transform="rotate(-28 16 16)"/>
+      </svg>
+      NebulaPDF
+    </a>
+    <a class="nav-link" href="#tools" onclick="goHomeTo(event, 'tools')">Tools</a>
+    <a class="nav-link" href="#privacy" onclick="goHomeTo(event, 'privacy')">Privacy</a>
+    <button class="search-btn" id="search-btn" aria-label="Search tools"><span data-icon="search"></span><span>Search tools</span><kbd>⌘K</kbd></button>
+    <button class="icon-btn theme-btn" id="theme-btn" aria-label="Switch between dark and light">
+      <span data-icon="sun" class="ic-sun"></span><span data-icon="moon" class="ic-moon"></span>
+    </button>
+  </header>
+
+  <main id="main">
+    <div id="dashboard-view">
+      <section class="hero">
+        <div class="hero-fallback"></div>
+        <canvas class="hero-canvas" id="sky" aria-hidden="true"></canvas>
+        <div class="wrap hero-inner">
+          <button class="well" id="well" data-cursor="drop" onclick="pickAny()" aria-label="Choose a file to open">
+            <span class="well-inner"><span data-icon="file-up"></span><span>Drop a file here</span><small>or anywhere on the page</small></span>
+          </button>
+          <div>
+            <h1 class="headline" id="headline">Every PDF tool. None of the uploads.</h1>
+            <p class="lede">24 tools that run entirely inside this browser tab: merge, compress, convert to Word and Excel, sign, protect and more. Drop a file anywhere to start.</p>
+            <div class="hero-actions">
+              <button class="btn" onclick="pickAny()"><span data-icon="upload"></span>Choose a file</button>
+              <a class="btn-ghost" href="#tools">Browse all tools</a>
             </div>
-            <div class="flex items-center space-x-4 sm:space-x-6 font-mono text-xs sm:text-sm font-bold">
-                <button onclick="navigateDashboard()" class="hover:text-cyan transition-colors underline decoration-2 underline-offset-4 decoration-transparent hover:decoration-cyan">[ TOOLS ]</button>
-                <button onclick="showView('about')" class="hover:text-cyan transition-colors underline decoration-2 underline-offset-4 decoration-transparent hover:decoration-cyan">[ ABOUT ]</button>
-            </div>
+          </div>
         </div>
-    </nav>
+      </section>
 
-    <main class="flex-grow container mx-auto px-4 py-8 sm:py-16 relative z-10 w-full overflow-hidden sm:overflow-visible">
-        
-        <div id="dashboard-view" class="max-w-6xl mx-auto transition-opacity duration-300 w-full">
-            
-            <div class="mb-12 sm:mb-20 relative crop-marks p-6 sm:p-12 bg-paper border-2 border-ink shadow-press-sm">
-                <div class="flex items-center space-x-3 mb-4 sm:mb-6">
-                    <div class="flex space-x-1">
-                        <div class="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-print-c border border-ink"></div>
-                        <div class="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-print-m border border-ink"></div>
-                        <div class="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-print-y border border-ink"></div>
-                        <div class="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-ink border border-ink"></div>
-                    </div>
-                </div>
-                <h1 class="text-4xl sm:text-5xl md:text-7xl font-bold uppercase tracking-tighter mb-4 leading-none">Press & Bindery</h1>
-                <p class="font-mono text-graphite max-w-2xl text-xs sm:text-sm leading-relaxed border-l-2 border-cyan pl-3 sm:pl-4 break-words">
-                    SYSTEM_STATUS: <span class="text-cyan font-bold">ONLINE</span><br>
-                    LOCAL_PROCESSING: <span class="text-cyan font-bold">ACTIVE</span><br>
-                    Zero uploads. Zero servers. Professional PDF utility running entirely in the client browser environment via WebAssembly.
-                </p>
+      <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+
+      <section class="section" id="tools">
+        <div class="wrap">
+          <div class="section-head">
+            <div class="reveal">
+              <h2 class="h2">Pick a tool</h2>
+              <p class="sub">Or press <kbd>/</kbd> from anywhere and type what you need.</p>
             </div>
-
-            <div id="tools-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 scroll-mt-20">
-                
-                <div onclick="selectTool('ocr')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full relative overflow-hidden">
-                    <div class="absolute top-0 right-0 bg-ink text-paper font-mono text-[9px] sm:text-[10px] font-bold px-2 py-1 border-b-2 border-l-2 border-ink">ML_ENGINE</div>
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-eye text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Optical Reg</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Scan and extract text plates from raster images utilizing Tesseract.js machine learning.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: EXTRACT_TEXT</div>
-                        <div class="h-3 w-12 sm:h-4 sm:w-16 barcode opacity-60"></div>
-                    </div>
-                </div>
-
-                <div onclick="selectTool('split')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full">
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-cut text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Page Extractor</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Separate signatures. Pull specific page ranges from a master document to create a new file.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: SPLIT_SHEETS</div>
-                        <div class="h-3 w-10 sm:h-4 sm:w-12 barcode opacity-60"></div>
-                    </div>
-                </div>
-
-                <div onclick="selectTool('rotate')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full">
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-sync-alt text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Orientation</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Correct feed errors. Rotate documents clockwise, counter-clockwise, or invert 180 degrees.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: ROTATE_CANVAS</div>
-                        <div class="h-3 w-16 sm:h-4 sm:w-20 barcode opacity-60"></div>
-                    </div>
-                </div>
-
-                <div onclick="selectTool('merge')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full">
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-layer-group text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Bindery (Merge)</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Stitch multiple PDF files together into a continuous document. Sequence determines order.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: MERGE_FILES</div>
-                        <div class="h-3 w-12 sm:h-4 sm:w-16 barcode opacity-60"></div>
-                    </div>
-                </div>
-
-                <div onclick="selectTool('any2pdf')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full">
-                    <div class="absolute top-0 right-0 bg-cyan text-paper font-mono text-[9px] sm:text-[10px] font-bold px-2 py-1 border-b-2 border-l-2 border-ink">CORE_TOOL</div>
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-print text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Universal Press</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Plate generation. Convert Word (.docx), code logs, and raster images into crisp PDF format.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: COMPILE_PDF</div>
-                        <div class="h-3 w-20 sm:h-4 sm:w-24 barcode opacity-60"></div>
-                    </div>
-                </div>
-
-                <div onclick="selectTool('text2pdf')" class="card-press p-5 sm:p-6 cursor-pointer group flex flex-col h-full">
-                    <div class="mb-3 mt-1 sm:mb-4 sm:mt-2">
-                        <i class="fas fa-keyboard text-2xl sm:text-3xl text-ink card-icon transition-transform duration-300"></i>
-                    </div>
-                    <h3 class="text-xl sm:text-2xl font-bold mb-2 uppercase tracking-tight">Direct Typeset</h3>
-                    <p class="text-graphite mb-4 flex-grow font-mono text-xs leading-relaxed">Raw input interface. Paste notes or code blocks directly into the browser to typeset a PDF.</p>
-                    <div class="mt-4 pt-3 sm:pt-4 border-t-2 border-ink flex justify-between items-end">
-                        <div class="font-mono text-[9px] sm:text-[10px] font-bold text-ink">CMD: TXT_TO_PDF</div>
-                        <div class="h-3 w-8 sm:h-4 sm:w-10 barcode opacity-60"></div>
-                    </div>
-                </div>
-            </div>
+            <label class="field-search reveal" style="--d:1"><span data-icon="search"></span><input id="tool-search" type="search" aria-label="Search tools"></label>
+          </div>
+          <div class="chips" id="chips" role="toolbar" aria-label="Filter tools"></div>
+          <div class="grid" id="grid"></div>
+          <p class="empty hidden" id="empty">No tool matches that. Try merge, compress or sign.</p>
         </div>
+      </section>
 
-        <div id="workspace-view" class="hidden max-w-4xl mx-auto animate-[fadeIn_0.3s_ease-out] w-full">
-            <button onclick="navigateDashboard()" class="mb-6 sm:mb-8 font-mono text-xs sm:text-sm font-bold text-graphite hover:text-ink transition-colors group flex items-center">
-                <span class="group-hover:-translate-x-1 transition-transform inline-block mr-2 text-lg sm:text-base leading-none">&larr;</span> [ ABORT_OPERATION ]
-            </button>
-            
-            <div class="crop-marks bg-paper p-6 sm:p-12 border-2 border-ink relative shadow-press">
-                
-                <div class="flex items-start sm:items-center justify-between mb-6 sm:mb-8 border-b-2 border-ink pb-4 sm:pb-6 flex-col sm:flex-row gap-4">
-                    <div class="w-full">
-                        <div class="flex items-center space-x-3 mb-2">
-                            <div class="reg-target shrink-0"><div class="circle"></div></div>
-                            <h2 id="tool-title" class="text-2xl sm:text-4xl font-bold uppercase tracking-tighter break-words w-full">Tool Name</h2>
-                        </div>
-                        <p id="tool-desc" class="font-mono text-xs sm:text-sm text-graphite ml-8 sm:ml-9">Description of active process.</p>
-                    </div>
-                    <div class="hidden sm:block h-8 w-24 barcode opacity-40 shrink-0"></div>
-                </div>
-
-                <div id="tool-content" class="min-h-[200px] sm:min-h-[250px]"></div>
-
-                <div id="tool-options" class="mt-6 hidden bg-white p-4 sm:p-6 border-2 border-ink border-dashed"></div>
-
-                <div class="mt-8 sm:mt-10 pt-6 border-t-2 border-ink flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
-                    <div class="font-mono text-xs text-graphite font-bold text-center md:text-left w-full md:w-auto">STATUS: <span class="text-cyan">READY_FOR_INPUT</span></div>
-                    
-                    <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full md:w-auto">
-                        <button onclick="resetTool()" class="w-full sm:w-auto px-6 py-4 sm:py-3 font-mono text-sm border-2 border-ink bg-transparent hover:bg-ink hover:text-paper transition-colors font-bold uppercase text-center">
-                            Clear_Tray
-                        </button>
-                        <button id="action-btn" class="w-full sm:w-auto btn-press px-8 py-4 sm:py-3 text-sm uppercase tracking-wider flex items-center justify-center">
-                            <span>Execute</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+      <section class="section" id="privacy" style="border-top: 1px solid var(--line)">
+        <div class="wrap privacy">
+          <div class="reveal">
+            <h2 class="h2">Your files never leave this tab.</h2>
+            <p>Most online PDF tools upload your document to their server, work on it there and send it back. NebulaPDF does the opposite: your browser downloads the open-source tool code, and the work happens on your device.</p>
+            <p>There is no account, no upload and nothing kept. Close the tab and it's gone.</p>
+          </div>
+          <div class="readout reveal" style="--d:2">
+            <div class="readout-row"><span><i class="pulse"></i>This session</span><span>live</span></div>
+            <div class="readout-row"><span>Tool code downloaded</span><b id="ro-down">0 KB</b></div>
+            <div class="readout-row"><span>Files processed here</span><b id="ro-files">0</b></div>
+            <div class="readout-row"><span>Bytes of your files uploaded</span><b class="zero">0</b></div>
+          </div>
         </div>
-
-        <div id="about-view" class="hidden max-w-4xl mx-auto w-full">
-            <div class="crop-marks p-6 sm:p-12 bg-paper border-2 border-ink mb-12 shadow-press">
-                <h2 class="text-3xl sm:text-5xl font-bold uppercase mb-6 sm:mb-8 tracking-tighter flex items-center">
-                    <div class="reg-target mr-3 sm:mr-4 shrink-0"><div class="circle"></div></div>
-                    Manifesto & Specs
-                </h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 font-mono text-sm border-t-2 border-ink pt-6 sm:pt-8">
-                    <div>
-                        <h3 class="text-lg sm:text-xl font-display font-bold uppercase border-b-2 border-ink pb-2 mb-4 text-cyan">Architecture</h3>
-                        <p class="text-graphite leading-relaxed mb-4 text-xs sm:text-sm">
-                            NebulaPDF was engineered to eliminate the compromise between convenience and security. Most web-based PDF converters upload your documents to remote servers, process them in a queue, and hold your data in temp folders.
-                        </p>
-                        <p class="text-graphite leading-relaxed text-xs sm:text-sm">
-                            By utilizing WebAssembly and modern browser APIs, we brought the entire print shop into your local environment. Data never leaves your device.
-                        </p>
-                    </div>
-                    <div>
-                        <h3 class="text-lg sm:text-xl font-display font-bold uppercase border-b-2 border-ink pb-2 mb-4 text-cyan">Press Components</h3>
-                        <ul class="space-y-3 sm:space-y-4 text-graphite mt-4 sm:mt-6 text-xs sm:text-sm">
-                            <li class="flex justify-between border-b border-ink/20 pb-2"><span class="font-bold text-ink">Canvas:</span> <span>HTML5/Tailwind</span></li>
-                            <li class="flex justify-between border-b border-ink/20 pb-2"><span class="font-bold text-ink">Engine:</span> <span>pdf-lib.js / jsPDF</span></li>
-                            <li class="flex justify-between border-b border-ink/20 pb-2"><span class="font-bold text-ink">Typesetter:</span> <span>Mammoth (DOCX)</span></li>
-                            <li class="flex justify-between border-b border-ink/20 pb-2"><span class="font-bold text-ink">Scanner:</span> <span>Tesseract.js (OCR)</span></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="mt-10 sm:mt-12 pt-8 border-t-2 border-ink text-center flex flex-col items-center">
-                    <div class="h-4 sm:h-6 w-24 sm:w-32 barcode opacity-40 mb-6"></div>
-                    <button onclick="navigateDashboard()" class="btn-press w-full sm:w-auto px-8 sm:px-10 py-4 text-sm sm:text-base uppercase tracking-widest">
-                        Initialize_Tools
-                    </button>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <footer class="border-t-4 border-ink bg-paper mt-auto relative z-10 w-full overflow-hidden">
-        <div class="container mx-auto px-4 sm:px-6 py-10 sm:py-12 font-mono text-sm">
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 sm:gap-12">
-                <div class="col-span-1 sm:col-span-2 md:col-span-2">
-                    <div class="flex items-center space-x-2 mb-4">
-                        <div class="flex space-x-1 mr-1 sm:mr-2 shrink-0">
-                            <div class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-print-c"></div>
-                            <div class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-print-m"></div>
-                            <div class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-print-y"></div>
-                        </div>
-                        <span class="font-bold uppercase text-lg sm:text-xl font-display tracking-tight">NebulaPDF</span>
-                    </div>
-                    <p class="text-graphite max-w-sm mb-6 leading-relaxed text-xs sm:text-sm">
-                        Strictly client-side processing. No temporary files stored on external servers. Secure by design.
-                    </p>
-                    <div class="inline-block border-2 border-ink px-3 py-1 text-[10px] sm:text-xs font-bold uppercase bg-white">
-                        Status: Operational
-                    </div>
-                </div>
-                <div>
-                    <h4 class="font-display font-bold uppercase mb-3 sm:mb-4 text-ink border-b-2 border-ink inline-block pb-1 text-sm sm:text-base">Index</h4>
-                    <ul class="space-y-2 sm:space-y-3 text-graphite font-bold text-xs sm:text-sm">
-                        <li><a href="#" onclick="showView('dashboard'); selectTool('any2pdf')" class="hover:text-cyan transition-colors">Universal Press</a></li>
-                        <li><a href="#" onclick="showView('dashboard'); selectTool('merge')" class="hover:text-cyan transition-colors">Bindery (Merge)</a></li>
-                        <li><a href="#" onclick="showView('about')" class="hover:text-cyan transition-colors">Manifesto</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="font-display font-bold uppercase mb-3 sm:mb-4 text-ink border-b-2 border-ink inline-block pb-1 text-sm sm:text-base">Comms</h4>
-                    <div class="flex space-x-6 text-xl sm:text-2xl">
-                        <a href="#" class="text-ink hover:text-cyan transition-colors"><i class="fab fa-github"></i></a>
-                        <a href="#" class="text-ink hover:text-cyan transition-colors"><i class="fab fa-twitter"></i></a>
-                    </div>
-                </div>
-            </div>
-            <div class="border-t-2 border-ink/20 mt-10 sm:mt-12 pt-6 sm:pt-8 flex flex-col md:flex-row justify-between items-center text-[10px] sm:text-xs text-graphite uppercase font-bold text-center sm:text-left gap-4 md:gap-0">
-                <p>&copy; 2026 NEBULAPDF SUITE. OPEN SOURCE.</p>
-                <div class="h-3 w-24 sm:h-4 sm:w-32 barcode opacity-30"></div>
-                <p>MADE BY AMAN</p>
-            </div>
-        </div>
-    </footer>
-
-    <div id="toast" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:w-max transform translate-y-32 transition-transform duration-300 z-50">
-        <div class="bg-paper border-2 border-cyan shadow-press p-3 sm:p-4 flex items-center font-mono justify-center md:justify-start">
-            <div class="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-cyan rounded-none mr-3 sm:mr-4 animate-pulse border border-ink shrink-0"></div>
-            <span id="toast-msg" class="text-ink font-bold text-xs sm:text-sm uppercase truncate">Process Complete</span>
-        </div>
+      </section>
     </div>
 
-    <input type="file" id="file-input-pdf" accept="application/pdf" multiple class="hidden">
-    <input type="file" id="file-input-img" accept="image/*" class="hidden">
-    <input type="file" id="file-input-any" accept=".txt,.md,.csv,.json,.js,.css,.docx,image/*" multiple class="hidden">
+    <section id="workspace-view" class="ws hidden">
+      <div class="wrap">
+        <button class="back" onclick="goHome()"><span data-icon="arrow-left"></span>All tools</button>
+        <div class="ws-head">
+          <div class="ws-icon" id="ws-icon"></div>
+          <div><h1 class="ws-title" id="tool-title"></h1><p class="ws-desc" id="tool-desc"></p></div>
+        </div>
+        <div class="ws-grid">
+          <div class="panel">
+            <div id="tool-content"></div>
+            <div id="tool-options" class="options hidden"></div>
+          </div>
+          <aside class="side">
+            <div class="panel" style="display:grid; gap:14px">
+              <div class="preview" id="preview"></div>
+              <dl class="meta" id="meta"></dl>
+            </div>
+            <div class="panel side-actions run-wrap">
+              <button id="action-btn" class="btn"></button>
+              <div class="bar hidden" id="bar"><i></i></div>
+              <button class="btn-ghost btn-sm" onclick="resetTool()">Start over</button>
+              <p class="local-note"><span data-icon="shield-check"></span>Processed on this device. Nothing is uploaded.</p>
+            </div>
+            <div class="panel hidden" id="result" aria-live="polite"></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
 
-    <script>
-        let currentTool = null;
-        let uploadedFiles = [];
+  <footer class="foot">
+    <div class="wrap">
+      <span class="foot-word" id="foot-word" aria-hidden="true">NebulaPDF</span>
+      <div class="foot-row">
+        <p>Runs in your browser. Nothing is uploaded. Made by Aman, open source under the MIT license.</p>
+        <label class="switch"><input type="checkbox" id="calm-toggle"><span class="switch-track"><span class="switch-thumb"></span></span><span>Pause motion</span></label>
+      </div>
+    </div>
+  </footer>
 
-        const views = {
-            dashboard: document.getElementById('dashboard-view'),
-            workspace: document.getElementById('workspace-view'),
-            about: document.getElementById('about-view')
-        };
-        
-        const toolUI = {
-            title: document.getElementById('tool-title'),
-            desc: document.getElementById('tool-desc'),
-            content: document.getElementById('tool-content'),
-            options: document.getElementById('tool-options'),
-            actionBtn: document.getElementById('action-btn')
-        };
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div class="dropveil" id="dropveil" aria-hidden="true"><p>Drop to open</p></div>
 
-        function showView(viewName) {
-            resetTool();
-            Object.values(views).forEach(el => el.classList.add('hidden'));
-            views[viewName].classList.remove('hidden');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+  <dialog id="palette" aria-label="Search tools">
+    <div class="sheet">
+      <div class="palette-input"><span data-icon="search"></span><input id="pal-input" placeholder="What do you need to do?" aria-label="Search tools" autocomplete="off"></div>
+      <ul class="palette-list" id="pal-list"></ul>
+      <div class="palette-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> to move</span><span><kbd>Enter</kbd> to open</span><span><kbd>Esc</kbd> to close</span></div>
+    </div>
+  </dialog>
 
-        function navigateDashboard() {
-            if(!views.dashboard.classList.contains('hidden')) {
-                document.getElementById('tools-grid').scrollIntoView({ behavior: 'smooth' });
-            } else {
-                showView('dashboard');
-            }
-        }
+  <dialog id="router" aria-labelledby="router-title">
+    <div class="sheet">
+      <div class="router-head"><h2 id="router-title">What should happen to it?</h2><p id="router-file"></p></div>
+      <div class="router-grid" id="router-grid"></div>
+    </div>
+  </dialog>
 
-        function selectTool(toolId) {
-            currentTool = toolId;
-            Object.values(views).forEach(el => el.classList.add('hidden'));
-            views.workspace.classList.remove('hidden');
-            setupToolUI(toolId);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+  <div class="cursor gone" id="cursor" aria-hidden="true"><div class="cursor-ring"><span class="cursor-label" id="cursor-label"></span></div><div class="cursor-dot"></div></div>
+  <input type="file" id="file-input" class="hidden">
 
-        function setupToolUI(toolId) {
-            uploadedFiles = [];
-            toolUI.options.innerHTML = '';
-            toolUI.options.classList.add('hidden');
-            
-            const config = getToolConfig(toolId);
-            toolUI.title.innerText = config.title;
-            toolUI.desc.innerText = config.desc;
-            toolUI.content.innerHTML = config.html;
-            toolUI.actionBtn.innerHTML = `<span>${config.btnText}</span>`;
-            
-            // Full width btn on mobile
-            toolUI.actionBtn.className = "w-full sm:w-auto btn-press px-8 py-4 sm:py-3 text-sm uppercase tracking-widest flex items-center justify-center";
-            toolUI.actionBtn.onclick = config.action;
-            
-            if(document.getElementById('drop-zone')) initDragAndDrop(config.inputType);
-        }
-
-        function getToolConfig(toolId) {
-            // NOTE: Added 'text-base sm:text-sm' to all inputs to prevent iOS zoom
-            switch(toolId) {
-                case 'ocr': return {
-                    title: 'Optical Reg (OCR)', desc: 'Scan raster images for text extraction. (Local ML)',
-                    inputType: 'image', btnText: 'Run_Scanner', action: processOCR,
-                    html: getUploadTemplate('fas fa-eye', 'STAGE_IMAGE', 'Requires: JPG, PNG')
-                };
-                case 'split': return {
-                    title: 'Page Extractor', desc: 'Define page ranges to isolate from master PDF.',
-                    inputType: 'pdf', btnText: 'Extract_Pages', action: processSplit,
-                    html: getUploadTemplate('fas fa-cut', 'STAGE_MASTER_PDF', 'Select 1 File')
-                };
-                case 'rotate': return {
-                    title: 'Orientation Fix', desc: 'Batch rotate all sheets in document.',
-                    inputType: 'pdf', btnText: 'Apply_Rotation', action: processRotate,
-                    html: getUploadTemplate('fas fa-sync', 'STAGE_PDF', 'Select 1 File')
-                };
-                case 'merge': return {
-                    title: 'Bindery (Merge)', desc: 'Stitch multiple files. Sequence determines output order.',
-                    inputType: 'pdf', btnText: 'Bind_Files', action: processMergePdf,
-                    html: getUploadTemplate('fas fa-layer-group', 'STAGE_PDF_FILES', 'Order matters')
-                };
-                case 'any2pdf': return {
-                    title: 'Universal Press', desc: 'Typeset documents, code, or images to PDF.',
-                    inputType: 'any', btnText: 'Compile_PDF', action: processAny2Pdf,
-                    html: getUploadTemplate('fas fa-print', 'STAGE_ASSETS', 'Supports: .docx, img, txt')
-                };
-                case 'text2pdf': return {
-                    title: 'Direct Typeset', desc: 'Raw input field for generating clean PDF sheets.',
-                    inputType: 'none', btnText: 'Print_PDF', action: processText2Pdf,
-                    html: `<textarea id="text-input" class="input-press w-full h-48 sm:h-64 p-4 sm:p-5 text-ink text-base sm:text-sm leading-relaxed" placeholder="[ BEGIN_TYPESETTING_HERE ]"></textarea>`
-                };
-            }
-        }
-
-        function getUploadTemplate(icon, title, subtitle) {
-            return `
-                <div id="drop-zone" class="border-2 border-ink border-dashed p-8 sm:p-12 text-center cursor-pointer hover:bg-cyan/10 transition-colors bg-white group">
-                    <div class="mb-3 sm:mb-4">
-                        <i class="${icon} text-3xl sm:text-4xl text-ink group-hover:text-cyan transition-colors"></i>
-                    </div>
-                    <h4 class="text-lg sm:text-xl font-bold uppercase mb-1 sm:mb-2 font-display tracking-tight">${title}</h4>
-                    <p class="text-graphite font-mono text-[10px] sm:text-xs font-bold uppercase">${subtitle}</p>
-                </div>
-                <div id="file-list" class="mt-4 sm:mt-6 space-y-2 sm:space-y-3"></div>
-            `;
-        }
-
-        function initDragAndDrop(type) {
-            const dropZone = document.getElementById('drop-zone');
-            let fileInput = document.getElementById(type === 'pdf' ? 'file-input-pdf' : type === 'image' ? 'file-input-img' : 'file-input-any');
-            
-            dropZone.onclick = (e) => { if(!e.target.closest('.file-item')) fileInput.click(); }
-            fileInput.onchange = (e) => handleFiles(e.target.files);
-        }
-
-        function handleFiles(files) {
-            if (['split', 'rotate', 'ocr'].includes(currentTool)) {
-                uploadedFiles = [files[0]]; 
-            } else {
-                Array.from(files).forEach(f => uploadedFiles.push(f));
-            }
-            renderFileList();
-            showToolOptions();
-        }
-
-        function renderFileList() {
-            const list = document.getElementById('file-list');
-            list.innerHTML = '';
-            uploadedFiles.forEach((file, index) => {
-                const size = (file.size / 1024).toFixed(1) + ' KB';
-                list.innerHTML += `
-                    <div class="file-item flex flex-col sm:flex-row sm:items-center justify-between bg-white border-2 border-ink p-3 font-mono text-xs sm:text-sm shadow-sm hover:shadow-press-hover transition-shadow gap-2 sm:gap-0">
-                        <div class="flex items-center text-ink w-full sm:w-auto overflow-hidden">
-                            <span class="bg-ink text-paper px-2 py-0.5 text-[10px] sm:text-xs mr-2 sm:mr-3 font-bold shrink-0">FILE</span> 
-                            <span class="truncate font-bold w-full sm:max-w-[180px] md:max-w-md">${file.name}</span>
-                            <span class="text-graphite ml-2 sm:ml-3 text-[10px] sm:text-xs shrink-0">[${size}]</span>
-                        </div>
-                        <button onclick="removeFile(${index})" class="text-vermilion font-bold hover:bg-vermilion/10 px-2 py-2 sm:py-1 uppercase text-[10px] sm:text-xs transition-colors w-full sm:w-auto text-left sm:text-center border sm:border-transparent border-vermilion/30 mt-1 sm:mt-0">Remove</button>
-                    </div>`;
-            });
-        }
-
-        function removeFile(index) {
-            uploadedFiles.splice(index, 1);
-            renderFileList();
-            if(uploadedFiles.length === 0) toolUI.options.classList.add('hidden');
-        }
-
-        function showToolOptions() {
-            if (uploadedFiles.length === 0) return;
-            toolUI.options.classList.remove('hidden');
-            
-            // Added 'text-base sm:text-sm' to prevent iOS zoom
-            if (currentTool === 'split') {
-                toolUI.options.innerHTML = `
-                    <label class="font-mono text-[10px] sm:text-xs font-bold text-ink block mb-2 uppercase">Extraction Range (e.g., 1, 3, 5-8):</label>
-                    <input type="text" id="split-ranges" class="input-press w-full p-3 sm:p-4 text-ink font-bold text-base sm:text-sm" placeholder="1-3, 5">`;
-            } else if (currentTool === 'rotate') {
-                toolUI.options.innerHTML = `
-                    <label class="font-mono text-[10px] sm:text-xs font-bold text-ink block mb-2 uppercase">Rotation Angle:</label>
-                    <select id="rotate-angle" class="input-press w-full p-3 sm:p-4 text-ink font-bold cursor-pointer text-base sm:text-sm">
-                        <option value="90">90° Clockwise</option>
-                        <option value="180">180° Invert</option>
-                        <option value="270">90° Counter-Clockwise</option>
-                    </select>`;
-            } else if (currentTool === 'ocr') {
-                toolUI.options.innerHTML = `
-                    <label class="font-mono text-[10px] sm:text-xs font-bold text-ink block mb-2 uppercase">Output Buffer:</label>
-                    <textarea id="ocr-result" class="input-press w-full h-32 sm:h-48 p-3 sm:p-4 text-ink leading-relaxed text-base sm:text-sm" readonly placeholder="Awaiting execution..."></textarea>`;
-            }
-        }
-
-        function resetTool() {
-            uploadedFiles = [];
-            const list = document.getElementById('file-list');
-            if(list) list.innerHTML = '';
-            toolUI.options.classList.add('hidden');
-        }
-
-        function setLoading(isLoading, text = "PROCESSING...") {
-            const btn = toolUI.actionBtn;
-            if (isLoading) {
-                btn.innerHTML = `<div class="spinner mr-2 sm:mr-3"></div> ${text}`;
-                btn.disabled = true;
-            } else {
-                btn.innerHTML = `<span>${getToolConfig(currentTool).btnText}</span>`;
-                btn.disabled = false;
-            }
-        }
-
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
-            toast.classList.remove('translate-y-32');
-            setTimeout(() => toast.classList.add('translate-y-32'), 3000);
-        }
-
-        /* --- PDF Operations --- */
-
-        async function processSplit() {
-            if (!uploadedFiles[0]) return alert("STAGE FILE FIRST");
-            const ranges = document.getElementById('split-ranges').value;
-            if (!ranges) return alert("SPECIFY RANGE");
-            
-            setLoading(true);
-            try {
-                const { PDFDocument } = PDFLib;
-                const srcBytes = await readFileAsArrayBuffer(uploadedFiles[0]);
-                const srcDoc = await PDFDocument.load(srcBytes);
-                const newDoc = await PDFDocument.create();
-                
-                let pagesToKeep = new Set();
-                ranges.split(',').forEach(part => {
-                    if (part.includes('-')) {
-                        const [start, end] = part.split('-').map(Number);
-                        for(let i = start; i <= end; i++) pagesToKeep.add(i - 1);
-                    } else {
-                        pagesToKeep.add(Number(part) - 1);
-                    }
-                });
-
-                const indices = Array.from(pagesToKeep).filter(i => i >= 0 && i < srcDoc.getPageCount());
-                const copiedPages = await newDoc.copyPages(srcDoc, indices);
-                copiedPages.forEach(p => newDoc.addPage(p));
-
-                downloadBlob(await newDoc.save(), 'nebula-extracted.pdf', 'application/pdf');
-                showToast("Extraction Successful");
-            } catch (e) { alert("ERROR: INVALID RANGE SYNTAX"); }
-            setLoading(false);
-        }
-
-        async function processRotate() {
-            if (!uploadedFiles[0]) return alert("STAGE FILE FIRST");
-            setLoading(true);
-            try {
-                const angle = Number(document.getElementById('rotate-angle').value);
-                const { PDFDocument, degrees } = PDFLib;
-                const srcBytes = await readFileAsArrayBuffer(uploadedFiles[0]);
-                const pdfDoc = await PDFDocument.load(srcBytes);
-                
-                const pages = pdfDoc.getPages();
-                pages.forEach(page => {
-                    const currentRotation = page.getRotation().angle;
-                    page.setRotation(degrees(currentRotation + angle));
-                });
-
-                downloadBlob(await pdfDoc.save(), 'nebula-rotated.pdf', 'application/pdf');
-                showToast("Rotation Applied");
-            } catch (e) { alert("ERROR: CORRUPT FILE OR ENGINE FAILURE"); }
-            setLoading(false);
-        }
-
-        async function processOCR() {
-            if (!uploadedFiles[0]) return alert("STAGE IMAGE FIRST");
-            setLoading(true, "ANALYZING...");
-            try {
-                const imgUrl = URL.createObjectURL(uploadedFiles[0]);
-                const result = await Tesseract.recognize(imgUrl, 'eng');
-                document.getElementById('ocr-result').value = result.data.text;
-                showToast("Scan Complete");
-            } catch (e) { alert("ERROR: OCR ENGINE FAILURE"); }
-            setLoading(false);
-        }
-
-        async function processMergePdf() {
-            if (uploadedFiles.length < 2) return alert("STAGE MIN 2 FILES");
-            setLoading(true);
-            try {
-                const { PDFDocument } = PDFLib;
-                const mergedPdf = await PDFDocument.create();
-                for (const file of uploadedFiles) {
-                    const bytes = await readFileAsArrayBuffer(file);
-                    const pdf = await PDFDocument.load(bytes);
-                    const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-                    pages.forEach(p => mergedPdf.addPage(p));
-                }
-                downloadBlob(await mergedPdf.save(), 'nebula-bound.pdf', 'application/pdf');
-                showToast("Bindery Complete");
-            } catch (e) { alert("ERROR: MERGE FAILURE"); }
-            setLoading(false);
-        }
-
-        async function processAny2Pdf() {
-            if (uploadedFiles.length === 0) return alert("STAGE ASSETS FIRST");
-            setLoading(true);
-            try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                let isFirst = true;
-                for (const file of uploadedFiles) {
-                    if (!isFirst) doc.addPage();
-                    isFirst = false;
-
-                    if (file.name.endsWith('.docx')) {
-                        const arrayBuffer = await readFileAsArrayBuffer(file);
-                        const result = await mammoth.extractRawText({ arrayBuffer });
-                        doc.setFont("courier", "normal");
-                        doc.setFontSize(11);
-                        doc.text(doc.splitTextToSize(result.value, 180), 15, 15);
-                    } else if (file.type.startsWith('image/')) {
-                        const imgData = await readFileAsDataURL(file);
-                        const props = doc.getImageProperties(imgData);
-                        const ratio = props.width / props.height;
-                        const w = 180; const h = w / ratio;
-                        doc.addImage(imgData, 'JPEG', 15, 15, w, h);
-                    } else {
-                        const r = new FileReader();
-                        const txt = await new Promise((res) => { r.onload=()=>res(r.result); r.readAsText(file); });
-                        doc.setFont("courier", "normal");
-                        doc.setFontSize(10);
-                        doc.text(doc.splitTextToSize(txt, 180), 15, 15);
-                    }
-                }
-                doc.save('nebula-plate.pdf');
-                showToast("Typeset Complete");
-            } catch(e) { alert("ERROR: PARSING FAILURE"); }
-            setLoading(false);
-        }
-
-        function processText2Pdf() {
-            const text = document.getElementById('text-input').value;
-            if (!text) return alert("INPUT REQUIRED");
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            doc.setFont("courier", "normal");
-            doc.setFontSize(12);
-            doc.text(doc.splitTextToSize(text, 180), 15, 15);
-            doc.save('nebula-document.pdf');
-            showToast("Document Generated");
-        }
-
-        /* --- Utilities --- */
-        const readFileAsDataURL = (f) => new Promise((r) => { const reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsDataURL(f); });
-        const readFileAsArrayBuffer = (f) => new Promise((r) => { const reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsArrayBuffer(f); });
-        const downloadBlob = (data, name, type) => {
-            const blob = new Blob([data], { type });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = name; a.click();
-        };
-    </script>
+  <script src="assets/icons.js?v=7"></script>
+  <script src="assets/engine.js?v=7"></script>
+  <script src="assets/app.js?v=7"></script>
 </body>
 </html>
