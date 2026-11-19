@@ -49,8 +49,13 @@ const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? 
 function save(data, name) {
   const file = new File([data], name, { type: mimeOf(name) });
   const url = URL.createObjectURL(file);
-  Object.assign(document.createElement('a'), { href: url, download: name }).click();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  // the link is put in the page for the click: Firefox and older Safari ignore clicks on links that aren't
+  const a = Object.assign(document.createElement('a'), { href: url, download: name, rel: 'noopener' });
+  a.style.display = 'none';
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
   window.onSaved?.(file);
 }
 async function saveMany(files, zipName) {
@@ -482,9 +487,14 @@ function docxWriter() {
       const id = ++ids;
       return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${behind ? id : 251658240 + id}" behindDoc="${behind ? 1 : 0}" locked="1" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${emu(x)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${emu(y)}</wp:posOffset></wp:positionV><wp:extent cx="${emu(w)}" cy="${emu(h)}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Picture ${id}"/><wp:cNvGraphicFramePr/>${graphic(rid, w, h, id)}</wp:anchor></w:drawing></w:r>`;
     },
+    // A borderless text box at a fixed place on the page that never wraps and grows to fit its text.
+    textBox(x, y, w, h, paragraph) {
+      const id = ++ids;
+      return `<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${251658240 + id}" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${emu(x)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${emu(y)}</wp:posOffset></wp:positionV><wp:extent cx="${emu(w)}" cy="${emu(h)}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Text ${id}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent>${paragraph}</w:txbxContent></wps:txbx><wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" anchorCtr="0"><a:spAutoFit/></wps:bodyPr></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></mc:Choice></mc:AlternateContent></w:r>`;
+    },
     async pack(body, sect) {
       await need('jszip');
-      const zip = new JSZip(), NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+      const zip = new JSZip(), NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"';
       const head = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
       zip.file('[Content_Types].xml', `${head}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/></Types>`);
       zip.file('word/settings.xml', `${head}<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
@@ -538,20 +548,21 @@ function paperless(pg) {
   return c;
 }
 
-/* Exact layout: every page is its own Word page of the same size. Pictures and drawings sit behind as one
-   picture; each piece of text is a positioned paragraph (a frame) with its original font, size and colour. */
+/* Exact layout: every page is its own Word page of the same size. The page's graphics sit behind as one picture;
+   each piece of text is a text box at its exact place, with its original font, size and colour. Text boxes (not the
+   older Word "frames") so that Pages, LibreOffice and Google Docs place them correctly too. */
 async function wordExact(doc, pg, last) {
-  let body = '';
-  if (pg.background) {
-    const rid = doc.addImage(await canvasBytes(paperless(pg), 'image/png'), 'png');
-    body += `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr>${doc.anchor(rid, 0, 0, pg.W, pg.H)}</w:p>`;
-  }
+  let shapes = '';
+  if (pg.background) shapes += doc.anchor(doc.addImage(await canvasBytes(paperless(pg), 'image/png'), 'png'), 0, 0, pg.W, pg.H);
   for (const l of toLines(pg.items)) for (const s of l.segs) {
-    const top = s.base - s.size * .96; // Word puts the baseline about 0.8 of an exact line (1.2 x size) below the frame top
-    body += `<w:p><w:pPr><w:framePr w:wrap="around" w:hAnchor="page" w:vAnchor="page" w:x="${tw(Math.max(0, s.x0))}" w:y="${tw(Math.max(0, top))}"/><w:spacing w:before="0" w:after="0" w:line="${tw(s.size * 1.2)}" w:lineRule="exact"/></w:pPr>${runsXml(s.items, true)}</w:p>`;
+    const top = s.base - s.size * .96; // with an exact line of 1.2 x size, the baseline sits about 0.96 x size below the top
+    const x = Math.max(0, s.x0), w = Math.min(pg.W - x, (s.x1 - s.x0) * 1.08 + s.size + 6);
+    shapes += doc.textBox(x, Math.max(0, top), w, s.size * 1.25,
+      `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${tw(s.size * 1.2)}" w:lineRule="exact"/></w:pPr>${runsXml(s.items, true)}</w:p>`);
   }
-  body += `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>${last ? '' : sectXml(pg.W, pg.H)}</w:pPr></w:p>`;
-  return body;
+  // all of the page's shapes hang off one tiny paragraph; the section break after it starts the next page
+  return `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr>${shapes}</w:p>` +
+    `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>${last ? '' : sectXml(pg.W, pg.H)}</w:pPr></w:p>`;
 }
 
 /* Flowing layout: real paragraphs, headings, tables and pictures in reading order, easiest to edit. */

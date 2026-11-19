@@ -248,31 +248,40 @@ const sky = (() => {
   })();
 })();
 
-/* ---------- tool grid, filters and search ---------- */
+/* ---------- tool grid: a row of the most used tools, then every group under its own heading ---------- */
 let filter = 'all';
-$('grid').innerHTML = Object.entries(TOOLS).map(([id, t], k) => `<button class="card reveal${t.featured ? ' featured' : ''}" data-id="${id}" data-group="${t.group}" style="--d:${k % 6}" onclick="openTool('${id}', this)">
-  ${t.featured ? '<span class="orb"></span>' : ''}<span class="card-icon">${icon(t.icon)}</span>
-  <span><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span></button>`).join('');
+const card = (id, big = false) => { const t = TOOLS[id]; return `<button class="card reveal${big ? ' featured' : ''}" data-id="${id}" onclick="openTool('${id}', this)">
+  ${big ? '<span class="orb"></span>' : ''}<span class="card-icon">${icon(t.icon)}</span>
+  <span class="card-text"><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span></button>`; };
+const ids = Object.keys(TOOLS);
+$('popular').innerHTML = `<header class="group-head"><h3>Most used</h3></header><div class="grid grid-popular">${ids.filter(id => TOOLS[id].featured).map(id => card(id, true)).join('')}</div>`;
+$('groups').innerHTML = GROUPS.map(([g, name]) => {
+  const list = ids.filter(id => TOOLS[id].group === g);
+  return `<section class="tool-group" data-g="${g}"><header class="group-head"><h3>${name}</h3><span class="mono">${plural(list.length, 'tool')}</span></header><div class="grid">${list.map(id => card(id)).join('')}</div></section>`;
+}).join('');
 $('chips').innerHTML = [['all', 'All tools'], ...GROUPS].map(([g, n]) => `<button class="chip" data-g="${g}" aria-pressed="${g === 'all'}">${n}</button>`).join('');
 $('chips').onclick = e => { const b = e.target.closest('[data-g]'); if (b) { filter = b.dataset.g; applyFilter(); } };
 $('tool-search').oninput = applyFilter;
-$('tool-search').placeholder = `Search ${Object.keys(TOOLS).length} tools`;
+$('tool-search').placeholder = `Search ${ids.length} tools`;
 const matches = (t, q) => !q || `${t.name} ${t.desc} ${t.keys}`.toLowerCase().includes(q);
 function applyFilter() {
   const q = $('tool-search').value.trim().toLowerCase();
   let shown = 0;
-  document.querySelectorAll('.card').forEach(c => {
-    const t = TOOLS[c.dataset.id], hit = (filter === 'all' || t.group === filter) && matches(t, q);
-    c.classList.toggle('hidden', !hit);
-    c.classList.toggle('featured', hit && !!t.featured && filter === 'all' && !q);
-    shown += hit;
+  document.querySelectorAll('.tool-group').forEach(sec => {
+    let n = 0;
+    sec.querySelectorAll('.card').forEach(c => { const hit = (filter === 'all' || sec.dataset.g === filter) && matches(TOOLS[c.dataset.id], q); c.classList.toggle('hidden', !hit); n += hit; });
+    sec.classList.toggle('hidden', !n);
+    shown += n;
   });
+  $('popular').classList.toggle('hidden', filter !== 'all' || !!q); // the shortcut row only on the full list
   document.querySelectorAll('#chips .chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.g === filter));
   $('empty').classList.toggle('hidden', shown > 0);
 }
-$('grid').addEventListener('pointermove', e => {
-  for (const c of e.currentTarget.children) {
+// the light on each card follows the pointer
+$('tools').addEventListener('pointermove', e => {
+  for (const c of document.querySelectorAll('#tools .card:not(.hidden)')) {
     const r = c.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) continue;
     c.style.setProperty('--mx', `${e.clientX - r.left}px`);
     c.style.setProperty('--my', `${e.clientY - r.top}px`);
   }
@@ -552,7 +561,7 @@ function showResult(msg) {
   const next = f ? (SUGGEST[kindOf(f)] || []).filter(id => id !== currentTool).slice(0, 4) : [];
   box.innerHTML = `<div class="result">
     <div class="result-head"><span class="result-check">${icon('check')}</span><div style="min-width:0"><p class="result-title">${esc(msg)}</p>${f ? `<p class="result-file">${esc(f.name)}, ${kb(f.size)}</p>` : ''}</div></div>
-    ${f ? `<button class="btn-ghost btn-sm" id="again">${icon('download')}Download again</button>` : ''}
+    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">It should download by itself. If your browser blocked it, use this button.</p>` : ''}
     ${next.length ? `<p class="next-label">Keep going with this file</p><div class="row">${next.map(id => `<button class="chip" data-id="${id}">${icon(TOOLS[id].icon)}${TOOLS[id].name}</button>`).join('')}</div>` : ''}</div>`;
   box.classList.remove('hidden');
   if (f) $('again').onclick = () => save(f, f.name);
