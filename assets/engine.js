@@ -337,7 +337,7 @@ async function analyzePage(view, n, { rich = false, fonts = false, ocr = null } 
     }
   }
 
-  const needOcr = ocr && out.items.length < 3;
+  const needOcr = ocr && !out.items.length; // only pages with no text of their own are read as scans
   if (!rich && !needOcr) return out;
 
   const S = 2, full = await renderPage(view, n, S), fullImg = full.getContext('2d').getImageData(0, 0, full.width, full.height);

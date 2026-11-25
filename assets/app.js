@@ -747,5 +747,7 @@ if ('launchQueue' in window) launchQueue.setConsumer(async p => { const files = 
   tick();
 })();
 
+$('action-btn').onclick = runTool; // the main button of every tool
+
 /* ---------- start ---------- */
 if (TOOLS[location.hash.slice(1)]) { selectTool(location.hash.slice(1)); showView('workspace'); }
