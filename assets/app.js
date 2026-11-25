@@ -452,8 +452,8 @@ function selectTool(id) {
   $('tool-desc').textContent = t.desc;
   $('tool-content').innerHTML = t.accept ? `<div id="drop-zone" class="drop" role="button" tabindex="0" data-cursor="drop">
       <span class="drop-icon">${icon('upload')}</span>
-      <p class="drop-title">${t.drop || (t.multiple || t.batch ? 'Drop PDFs here' : 'Drop a PDF here')}</p>
-      <p class="drop-sub">or click to choose. ${t.note || (t.batch ? 'One PDF, or several to do them all at once.' : 'One PDF file.')}</p></div>
+      <p class="drop-title"><span class="on-mouse">${t.drop || (t.multiple || t.batch ? 'Drop PDFs here' : 'Drop a PDF here')}</span><span class="on-touch">${t.accept === PDF ? (t.multiple || t.batch ? 'Tap to choose PDFs' : 'Tap to choose a PDF') : 'Tap to choose a file'}</span></p>
+      <p class="drop-sub"><span class="on-mouse">or click to choose. </span>${t.note || (t.batch ? 'One PDF, or several to do them all at once.' : 'One PDF file.')}</p></div>
     <ol id="file-list" class="files${t.ordered ? ' numbered' : ''}"></ol>` : '';
   $('tool-options').innerHTML = '';
   $('tool-options').classList.add('hidden');
@@ -623,11 +623,13 @@ async function runTool() {
     $('ro-files').textContent = processed;
     showResult(msg);
     if (lastFile && !autoSaved) {
-      showToast(`${msg}. Your file is ready: click Download to save it.`);
+      showToast(say(`${msg}. Your file is ready: click Download to save it.`));
       $('again')?.classList.add('attention');
       $('again')?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' });
       $('again')?.focus({ preventScroll: true });
     } else showToast(msg);
+    // on a phone the result sits below the options: bring it into view
+    if (matchMedia('(max-width: 980px)').matches) $('result').scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' });
   } catch (e) {
     saveSink = null;
     batchAt = null;
@@ -643,7 +645,7 @@ function showResult(msg) {
   const next = f ? (SUGGEST[kindOf(f)] || []).filter(id => id !== currentTool).slice(0, 4) : [];
   box.innerHTML = `<div class="result">
     <div class="result-head"><span class="result-check">${icon('check')}</span><div style="min-width:0"><p class="result-title">${esc(msg)}</p>${f ? `<p class="result-file">${esc(f.name)}, ${kb(f.size)}</p>` : ''}</div></div>
-    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">${autoSaved ? 'It should download by itself. If your browser blocked it, use this button.' : 'This took a little while, so your browser needs one click to save it.'}</p>` : ''}
+    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">${autoSaved ? 'It should download by itself. If your browser blocked it, use this button.' : say('This took a little while, so your browser needs one click to save it.')}</p>` : ''}
     ${next.length ? `<p class="next-label">Keep going with this file</p><div class="row">${next.map(id => `<button class="chip" data-id="${id}">${icon(TOOLS[id].icon)}${TOOLS[id].name}</button>`).join('')}</div>` : ''}</div>`;
   box.classList.remove('hidden');
   if (f) $('again').onclick = () => { save(f, f.name); $('again').classList.remove('attention'); };

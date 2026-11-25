@@ -728,7 +728,11 @@ const sel = (id, label, opts) => `<label class="field"><span class="field-label"
 const inp = (id, label, attrs = '') => `<label class="field"><span class="field-label">${label}</span><input id="${id}" class="input" ${attrs}></label>`;
 const check = (id, label, on = true) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span class="switch-track"><span class="switch-thumb"></span></span><span>${label}</span></label>`;
 const row = (...fields) => `<div class="field-row">${fields.join('')}</div>`;
-const hint = t => `<p class="hint">${t}</p>`;
+// On a touch screen, instructions talk about tapping, and leave out keyboard-only shortcuts.
+const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
+const say = t => !TOUCH ? t : t.replace(/\s*Shift-click picks a run\./g, '').replace(/ Press Enter when done, or Esc to undo\./g, ' Tap outside the line when done.')
+  .replace(/\bClick/g, 'Tap').replace(/\bclick/g, 'tap');
+const hint = t => `<p class="hint">${say(t)}</p>`;
 const STAGE = `<div class="stage">
   <div class="stage-bar"><button type="button" class="chip" onclick="stageGo(-1)">${icon('chevron-left')}Previous</button><span id="stage-label" class="mono">Loading…</span><button type="button" class="chip" onclick="stageGo(1)">Next${icon('chevron-right')}</button></div>
   <div id="stage-page" class="stage-page" data-cursor="cross"><div id="stage-marks" class="stage-marks"></div></div>
@@ -761,7 +765,7 @@ async function pickerInit(file, mode = 'keep') {
   const view = await openView(file);
   Object.assign(picker, { n: view.numPages, last: null, sel: pagesIn(input.value, view.numPages) });
   box.className = `picker ${mode}`;
-  box.innerHTML = `<div class="picker-bar"><span class="label">${mode === 'remove' ? 'Click the pages to remove' : 'Click pages to choose them'}. Shift-click picks a run.</span>
+  box.innerHTML = `<div class="picker-bar"><span class="label">${say(`${mode === 'remove' ? 'Click the pages to remove' : 'Click pages to choose them'}. Shift-click picks a run.`)}</span>
     <div class="row">${[['all', 'All'], ['none', 'None'], ['odd', 'Odd'], ['even', 'Even']].map(([k, t]) => `<button type="button" class="chip" data-p="${k}">${t}</button>`).join('')}</div></div>
     <div class="picks" id="o-picks"></div>`;
   const grid = $('o-picks');
@@ -918,8 +922,8 @@ const TOOLS = {
     group: 'optimize', name: 'Compress PDF', icon: 'shrink', keys: 'reduce shrink size smaller optimize', featured: true,
     desc: 'Make a PDF smaller for email and uploads.',
     accept: PDF, btn: 'Compress PDF', libs: ['pdflib', 'pdfjs'], batch: true,
-    options: () => sel('o-level', 'Compression', [['medium', 'Recommended: good quality, much smaller'], ['strong', 'Strong: smallest file, lower quality'], ['light', 'Light: high quality, a little smaller'], ['lossless', 'Lossless: keeps text selectable, smallest saving']]) +
-      hint('Except for lossless, pages are saved as images, so text can no longer be selected or searched.'),
+    options: () => sel('o-level', 'Compression', [['medium', 'Recommended: much smaller'], ['strong', 'Strong: smallest file'], ['light', 'Light: best quality'], ['lossless', 'Lossless: keeps the text']]) +
+      hint('Recommended, Strong and Light save pages as images (lower quality for smaller files), so text can no longer be selected or searched. Lossless keeps the text but saves the least.'),
     async run([f]) {
       const level = val('o-level');
       const out = level === 'lossless'
@@ -1095,7 +1099,7 @@ const TOOLS = {
     group: 'from', name: 'PDF to Word', icon: 'file-type', keys: 'docx doc editable microsoft', featured: true,
     desc: 'An editable .docx that keeps fonts, colours, pictures, tables and the page layout. Scanned pages are read with OCR.',
     accept: PDF, btn: 'Convert to Word', libs: ['pdfjs', 'jszip'], batch: true,
-    options: () => sel('o-layout', 'Layout', [['exact', 'Exact: looks just like the PDF, text stays editable'], ['flow', 'Flowing: real paragraphs and tables, easiest to edit']]) +
+    options: () => sel('o-layout', 'Layout', [['exact', 'Exact: looks just like the PDF'], ['flow', 'Flowing: easiest to edit']]) +
       row(check('o-ocr', 'Read text on scanned pages'), sel('o-lang', 'Scan language', OCR_LANGS)) +
       hint('Exact keeps every line where it was, over a picture of the page’s graphics. Flowing rebuilds headings, paragraphs, tables and pictures so text reflows as you edit.'),
     async run([f]) {
@@ -1227,7 +1231,7 @@ const TOOLS = {
         stage.mode = m;
         document.querySelectorAll('#o-emode [data-m]').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
         $('o-addopts').classList.toggle('hidden', m !== 'point');
-        $('o-ehint').textContent = hints[m];
+        $('o-ehint').textContent = say(hints[m]);
         drawMarks();
       };
       $('o-emode').onclick = e => { const b = e.target.closest('[data-m]'); if (b) setMode(b.dataset.m); };

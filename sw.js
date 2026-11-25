@@ -28,7 +28,8 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const cache = await caches.open(SHELL);
     try {
-      const res = await fetch(req);
+      // always check with the server (never the browser's HTTP cache), so a new deploy is picked up at once
+      const res = await fetch(req, { cache: 'no-cache' });
       if (res.ok) cache.put(req, res.clone());
       return res;
     } catch {
