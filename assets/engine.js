@@ -1420,6 +1420,28 @@ const TOOLS = {
       let doc;
       try { doc = await PDFLib.PDFDocument.load(bytes, { password: val('o-pw') }); }
       catch { throw new UserError("That password didn't work."); }
+      // Loading decrypts the pages, but the file's old encryption settings and old cross-reference data are carried
+      // over as unused objects and written back, so the result would still look locked to some apps (and to our
+      // own tools). Keep only the objects the document actually uses, starting from its root.
+      const { PDFRef, PDFDict, PDFArray } = PDFLib, ctx = doc.context, used = new Set();
+      const walk = o => {
+        if (o instanceof PDFRef) { if (!used.has(o.tag)) { used.add(o.tag); walk(ctx.lookup(o)); } }
+        else if (o instanceof PDFDict) o.values().forEach(walk);
+        else if (o instanceof PDFArray) o.asArray().forEach(walk);
+        else if (o?.dict instanceof PDFDict) walk(o.dict); // a stream
+      };
+      // the title, author and so on may sit in an older copy of the document's info record: keep them
+      const { PDFName } = PDFLib, info = ctx.lookup(ctx.trailerInfo.Info);
+      if (info instanceof PDFDict) for (const [, obj] of ctx.enumerateIndirectObjects()) {
+        if (obj === info || !(obj instanceof PDFDict)) continue;
+        for (const k of ['Title', 'Author', 'Subject', 'Keywords']) {
+          const v = obj.get(PDFName.of(k));
+          if (v && !info.has(PDFName.of(k))) info.set(PDFName.of(k), v);
+        }
+      }
+      walk(ctx.trailerInfo.Root);
+      walk(ctx.trailerInfo.Info);
+      for (const [ref] of [...ctx.enumerateIndirectObjects()]) if (!used.has(ref.tag)) ctx.delete(ref);
       save(await doc.save(), `${stem(f)}-unlocked.pdf`);
       return 'Unlocked';
     },
