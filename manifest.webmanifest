@@ -1,6 +1,6 @@
 {
-  "name": "NebulaPDF",
-  "short_name": "NebulaPDF",
+  "name": "Nebula",
+  "short_name": "Nebula",
   "description": "25 PDF tools that run entirely on your device: merge, compress, convert, edit, sign and protect PDFs without uploading them.",
   "start_url": "./",
   "scope": "./",

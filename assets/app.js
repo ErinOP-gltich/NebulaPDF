@@ -1,4 +1,4 @@
-/* NebulaPDF page shell: theme, cursor, the night-sky hero, tool grid and search, file routing and the tool screen.
+/* Nebula page shell: theme, cursor, the night-sky hero, tool grid and search, file routing and the tool screen.
    Tools themselves live in engine.js. */
 const root = document.documentElement;
 const calm = () => root.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -20,11 +20,13 @@ function setTheme(next, e) {
   const x = e?.clientX ?? innerWidth - 40, y = e?.clientY ?? 40, r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
   let done = false;
   const once = () => { if (!done) { done = true; apply(); } };
+  root.classList.add('theme-vt');
   const vt = document.startViewTransition(once);
+  vt.finished.finally(() => root.classList.remove('theme-vt'));
   setTimeout(() => { if (!done) { vt.skipTransition(); once(); } }, 400); // same safety net as swap()
   vt.ready.then(() => root.animate(
     { clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
-    { duration: 700, easing: 'cubic-bezier(.2, 0, 0, 1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
+    { duration: 1100, easing: 'cubic-bezier(.2, 0, 0, 1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
 }
 $('theme-btn').onclick = e => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', e);
 
@@ -272,7 +274,7 @@ const IO = { merge: 'PDF → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', 
   ocr: 'PDF / Image → Text', jpg2pdf: 'Image → PDF', word2pdf: 'DOCX → PDF', excel2pdf: 'XLSX → PDF', text2pdf: 'Text → PDF', pdf2jpg: 'PDF → JPG / PNG',
   pdf2word: 'PDF → DOCX', pdf2ppt: 'PDF → PPTX', pdf2excel: 'PDF → XLSX', sign: 'PDF → PDF', edittext: 'PDF → PDF', fillform: 'PDF → PDF', numbers: 'PDF → PDF',
   watermark: 'PDF → PDF', crop: 'PDF → PDF', redact: 'PDF → PDF', protect: 'PDF → PDF', unlock: 'PDF → PDF' };
-const tagsOf = id => { const t = TOOLS[id]; return [IO[id], t.batch && 'Batch', t.multiple && 'Many files', /OCR/.test(t.desc) && 'OCR'].filter(Boolean); };
+const tagsOf = id => { const t = TOOLS[id]; return [IO[id], t.ai === 'device' ? 'On-device AI' : t.ai && 'AI', t.batch && 'Batch', t.multiple && 'Many files', /OCR/.test(t.desc) && 'OCR'].filter(Boolean); };
 const groupName = g => GROUPS.find(x => x[0] === g)[1];
 const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0'); return `<button class="card cell reveal${big ? ' featured' : ''}" data-id="${id}" data-g="${t.group}" onclick="openTool('${id}', this)">
   ${big ? `<span class="cell-art"><span class="orb"></span><span class="card-icon">${icon(t.icon)}</span></span>` : ''}
@@ -285,7 +287,7 @@ const ids = Object.keys(TOOLS);
 $('tools-count').textContent = `${ids.length} tools, ${GROUPS.length} groups`;
 $('popular').innerHTML = `<header class="group-head"><h3>Most used</h3><span class="label">Start here</span></header><div class="grid grid-popular">${ids.filter(id => TOOLS[id].featured).map(id => card(id, true)).join('')}</div>`;
 $('groups').innerHTML = GROUPS.map(([g, name]) => {
-  const list = ids.filter(id => TOOLS[id].group === g);
+  const list = ids.filter(id => TOOLS[id].group === g || TOOLS[id].also?.includes(g));
   return `<section class="tool-group" data-g="${g}"><header class="group-head"><h3>${name}</h3><span class="label">${plural(list.length, 'tool')}</span></header><div class="grid">${list.map(id => card(id)).join('')}</div></section>`;
 }).join('');
 $('chips').innerHTML = [['all', 'All tools'], ...GROUPS].map(([g, n]) => `<button class="chip" data-g="${g}" aria-pressed="${g === 'all'}">${n}</button>`).join('');
@@ -317,6 +319,21 @@ $('tools').addEventListener('pointermove', e => {
 });
 const revealer = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); revealer.unobserve(e.target); } }), { rootMargin: '0px 0px -8% 0px' });
 document.querySelectorAll('.reveal').forEach(el => revealer.observe(el));
+document.querySelectorAll('.h2, .group-head h3').forEach(el => { el.classList.add('wipe'); revealer.observe(el); });
+// cards lean a few degrees toward the pointer
+if (finePointer) {
+  let tilted = null;
+  $('tools').addEventListener('pointermove', e => {
+    const c = calm() ? null : e.target.closest('.card');
+    if (tilted && tilted !== c) { tilted.style.removeProperty('--rx'); tilted.style.removeProperty('--ry'); }
+    tilted = c;
+    if (!c) return;
+    const r = c.getBoundingClientRect(), px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
+    c.style.setProperty('--rx', `${(-py * 5).toFixed(2)}deg`);
+    c.style.setProperty('--ry', `${(px * 6).toFixed(2)}deg`);
+  });
+  $('tools').addEventListener('pointerleave', () => { tilted?.style.removeProperty('--rx'); tilted?.style.removeProperty('--ry'); tilted = null; });
+}
 
 $('foot-word').parentElement.addEventListener('pointermove', e => {
   const r = $('foot-word').getBoundingClientRect();
@@ -361,7 +378,7 @@ function pickAny() {
 function route(files) {
   if (!files.length) return;
   const kind = kindOf(files[0]);
-  if (!kind) return showToast(`${files[0].name} isn't a file NebulaPDF can work with. Try a PDF, image, Word, Excel or text file.`, true);
+  if (!kind) return showToast(`${files[0].name} isn't a file Nebula can work with. Try a PDF, image, Word, Excel or text file.`, true);
   const same = files.filter(f => kindOf(f) === kind);
   let ids = SUGGEST[kind];
   if (kind === 'pdf' && same.length > 1) ids = ['merge', ...ids.filter(i => i !== 'merge')];
@@ -423,7 +440,7 @@ function openTool(id, card, files) {
   if (location.hash !== `#${id}`) history.pushState({ tool: id }, '', `#${id}`);
 }
 function goHome(push = true) {
-  swap(() => { showView('dashboard'); scrollTo(0, homeScroll); document.title = 'NebulaPDF'; });
+  swap(() => { showView('dashboard'); scrollTo(0, homeScroll); document.title = 'Nebula'; });
   if (push && location.hash) history.pushState({}, '', location.pathname + location.search);
 }
 addEventListener('popstate', () => {
@@ -444,12 +461,14 @@ function selectTool(id) {
   const t = TOOLS[id];
   currentTool = id;
   uploadedFiles = [];
-  document.title = `${t.name} · NebulaPDF`;
+  document.title = `${t.name} · Nebula`;
   $('ws-icon').innerHTML = icon(t.icon);
   $('tool-title').textContent = t.name;
   $('ws-crumb').textContent = `Tool ${String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0')} / ${groupName(t.group)}`;
   document.documentElement.dataset.g = t.group;
   $('tool-desc').textContent = t.desc;
+  const note = document.querySelector('.local-note');
+  if (note) note.lastChild.textContent = 'Processed on this device. Nothing is uploaded.'; // AI tools in cloud mode change this
   $('tool-content').innerHTML = t.accept ? `<div id="drop-zone" class="drop" role="button" tabindex="0" data-cursor="drop">
       <span class="drop-icon">${icon('upload')}</span>
       <p class="drop-title"><span class="on-mouse">${t.drop || (t.multiple || t.batch ? 'Drop PDFs here' : 'Drop a PDF here')}</span><span class="on-touch">${t.accept === PDF ? (t.multiple || t.batch ? 'Tap to choose PDFs' : 'Tap to choose a PDF') : 'Tap to choose a file'}</span></p>
@@ -526,10 +545,10 @@ function showToolOptions(fresh) {
   const t = TOOLS[currentTool], box = $('tool-options');
   if (t.accept && !uploadedFiles.length) { box.innerHTML = ''; box.classList.add('hidden'); return; }
   if (!t.options) return;
-  if (!((t.multiple || t.batch) && box.innerHTML)) { box.innerHTML = t.options(); box.classList.remove('hidden'); }
+  if (!((t.multiple || t.batch) && box.innerHTML)) { box.innerHTML = t.options(); box.classList.remove('hidden'); t.afterOptions?.(); }
   // per-file extras (page picker, stage, form) only make sense for one file; a batch uses the same settings for all
   if (t.batch && uploadedFiles.length > 1) { $('o-picker')?.replaceChildren(); return; }
-  if (t.ready && fresh) need(...t.libs).then(() => t.ready(uploadedFiles)).catch(e => showToast(e.message, true));
+  if (t.ready && fresh) need(...(t.libs || [])).then(() => t.ready(uploadedFiles)).catch(e => showToast(e.message, true));
 }
 
 /* the side panel: a look at the first file, and its details */
@@ -543,6 +562,7 @@ async function drawPreview() {
     img.src = URL.createObjectURL(f);
     img.alt = '';
     img.onload = () => URL.revokeObjectURL(img.src);
+    img.onerror = () => { box.innerHTML = `<div class="preview-empty">${icon('img')}<span class="mono">${esc(f.name)}</span></div>`; }; // HEIC: most browsers can't show it
     box.replaceChildren(img);
     return;
   }
@@ -621,15 +641,17 @@ async function runTool() {
     const msg = t.batch && uploadedFiles.length > 1 ? await runBatch(t) : await t.run(uploadedFiles);
     processed += Math.max(1, uploadedFiles.length);
     $('ro-files').textContent = processed;
-    showResult(msg);
-    if (lastFile && !autoSaved) {
-      showToast(say(`${msg}. Your file is ready: click Download to save it.`));
-      $('again')?.classList.add('attention');
-      $('again')?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' });
-      $('again')?.focus({ preventScroll: true });
-    } else showToast(msg);
-    // on a phone the result sits below the options: bring it into view
-    if (matchMedia('(max-width: 980px)').matches) $('result').scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' });
+    if (!t.quiet) { // chat shows its answers in place
+      showResult(msg);
+      if (lastFile && !autoSaved) {
+        showToast(say(`${msg}. Your file is ready: click Download to save it.`));
+        $('again')?.classList.add('attention');
+        $('again')?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' });
+        $('again')?.focus({ preventScroll: true });
+      } else showToast(msg);
+      // on a phone the result sits below the options: bring it into view
+      if (matchMedia('(max-width: 980px)').matches) $('result').scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' });
+    }
   } catch (e) {
     saveSink = null;
     batchAt = null;
@@ -717,11 +739,11 @@ $('offline-btn').onclick = async () => {
 };
 let installPrompt = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('install-nav').classList.remove('hidden'); });
-addEventListener('appinstalled', () => { installPrompt = null; $('install-nav').classList.add('hidden'); showToast('NebulaPDF is installed. Open it like any other app.'); });
+addEventListener('appinstalled', () => { installPrompt = null; $('install-nav').classList.add('hidden'); showToast('Nebula is installed. Open it like any other app.'); });
 const install = async () => {
   if (installPrompt) { installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; $('install-nav').classList.add('hidden'); return; }
   if (matchMedia('(display-mode: standalone)').matches) return showToast('You’re already using the installed app.');
-  showToast(/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser’s menu and choose Install NebulaPDF (or Add to Home Screen).');
+  showToast(/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser’s menu and choose Install Nebula (or Add to Home Screen).');
 };
 $('install-nav').onclick = $('install-btn').onclick = install;
 addEventListener('offline', () => showToast('You’re offline. Tools you’ve saved or used before still work.'));
@@ -738,6 +760,8 @@ if ('launchQueue' in window) launchQueue.setConsumer(async p => { const files = 
     const max = root.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, scrollY / max) : 0;
     $('ruler-mark').style.top = `${p * 100}%`;
     $('ruler-pct').textContent = `${Math.round(p * 100)}%`;
+    const hero = secs[0][1];
+    hero.style.setProperty('--hp', calm() ? 0 : Math.min(1, Math.max(0, scrollY / (hero.offsetHeight || 1))).toFixed(3));
     let cur = 'top';
     for (const [k, el] of secs) if (el.getBoundingClientRect().top < innerHeight * .4) cur = k;
     if (root.classList.contains('on-tool')) cur = '';
@@ -753,3 +777,5 @@ $('action-btn').onclick = runTool; // the main button of every tool
 
 /* ---------- start ---------- */
 if (TOOLS[location.hash.slice(1)]) { selectTool(location.hash.slice(1)); showView('workspace'); }
+// the readout owns up when an AI tool sends text to Claude
+window.onCloudSend = n => { $('ro-sent').textContent = `${kb(n)} (to Claude)`; $('ro-sent').classList.remove('zero'); };

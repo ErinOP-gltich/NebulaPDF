@@ -1,0 +1,9 @@
+{
+  "name": "nebula",
+  "private": true,
+  "type": "module",
+  "description": "Nebula: PDF and image tools that run in the browser, plus Claude-powered AI tools (api/ai.js).",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  }
+}

@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NebulaPDF</title>
-<meta name="description" content="25 PDF tools that run entirely in your browser. Merge, compress, convert to Word and Excel, sign and protect PDFs without uploading them.">
+<title>Nebula</title>
+<meta name="description" content="40+ PDF, image and AI tools that run in your browser. Merge, compress, convert, sign and protect PDFs, edit images, and summarize or chat with documents, without uploading them.">
 <meta name="theme-color" content="#05060A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="NebulaPDF">
+<meta name="apple-mobile-web-app-title" content="Nebula">
 <script>
   // Theme and motion before first paint, so the page never flashes the wrong theme.
   (function () {
@@ -23,27 +23,27 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400..600&family=Anybody:wdth,wght@130,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/nebula.css?v=28">
+<link rel="stylesheet" href="assets/nebula.css?v=29">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF5A6E'/%3E%3Cstop offset='.5' stop-color='%23FFB547'/%3E%3Cstop offset='1' stop-color='%232FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%2305060A'/%3E%3Cellipse cx='16' cy='16' rx='12.5' ry='5' fill='none' stroke='url(%23g)' stroke-width='2.2' transform='rotate(-28 16 16)'/%3E%3Cpath d='M12 8.5h6l3.5 3.5v11.5H12z' fill='%23EEF0F7'/%3E%3C/svg%3E">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
 
   <header class="nav">
-    <a class="brand" href="#" onclick="event.preventDefault(); goHome()" aria-label="NebulaPDF home">
+    <a class="brand" href="#" onclick="event.preventDefault(); goHome()" aria-label="Nebula home">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
         <defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5A6E"/><stop offset=".5" stop-color="#FFB547"/><stop offset="1" stop-color="#2FE0D0"/></linearGradient></defs>
         <path d="M11 7h7.2l4 4V25H11z" fill="currentColor"/><path d="M18 7v4.4h4.2" fill="none" stroke="var(--bg)" stroke-width="1.4"/>
         <ellipse cx="16" cy="16" rx="14" ry="5.4" fill="none" stroke="url(#bm)" stroke-width="2.2" transform="rotate(-28 16 16)"/>
       </svg>
-      NebulaPDF
+      Nebula
     </a>
     <nav class="nav-links" aria-label="Sections">
       <a class="nav-link" href="#tools" onclick="goHomeTo(event, 'tools')" data-spy="tools">Tools</a>
       <a class="nav-link" href="#privacy" onclick="goHomeTo(event, 'privacy')" data-spy="privacy">Privacy</a>
     </nav>
     <button class="search-btn" id="search-btn" aria-label="Search tools"><span data-icon="search"></span><span>Search tools</span><kbd>⌘K</kbd></button>
-    <button class="icon-btn hidden" id="install-nav" aria-label="Install NebulaPDF as an app" title="Install as an app"><span data-icon="install"></span></button>
+    <button class="icon-btn hidden" id="install-nav" aria-label="Install Nebula as an app" title="Install as an app"><span data-icon="install"></span></button>
     <button class="icon-btn theme-btn" id="theme-btn" aria-label="Switch between dark and light">
       <span data-icon="sun" class="ic-sun"></span><span data-icon="moon" class="ic-moon"></span>
     </button>
@@ -61,7 +61,7 @@
           </button>
           <div>
             <h1 class="headline" id="headline">Every PDF tool. None of the uploads.</h1>
-            <p class="lede">25 tools that run entirely on your device: merge, compress, convert to Word and Excel, edit, sign, fill forms and more. Works offline.<span class="on-mouse"> Drop a file anywhere to start.</span></p>
+            <p class="lede">40+ tools that run on your device: merge, compress, convert, edit, sign and fill PDFs, fix up images, and summarize, translate or chat with documents using AI. Works offline.<span class="on-mouse"> Drop a file anywhere to start.</span></p>
             <div class="hero-actions">
               <button class="btn" onclick="pickAny()"><span data-icon="upload"></span>Choose a file</button>
               <a class="btn-ghost" href="#tools">Browse all tools</a>
@@ -94,14 +94,15 @@
         <div class="wrap privacy">
           <div class="reveal">
             <h2 class="h2">Your files never leave this tab.</h2>
-            <p>Most online PDF tools upload your document to their server, work on it there and send it back. NebulaPDF does the opposite: your browser downloads the open-source tool code, and the work happens on your device.</p>
+            <p>Most online PDF tools upload your document to their server, work on it there and send it back. Nebula does the opposite: your browser downloads the open-source tool code, and the work happens on your device.</p>
             <p>There is no account, no upload and nothing kept. Close the tab and it's gone.</p>
+            <p>The AI tools run an open-source model on your device too. Each has an optional switch to use Claude instead for better answers: only then is the document's text sent, to Anthropic, and the readout shows it.</p>
           </div>
           <div class="readout reveal" style="--d:2">
             <div class="readout-row"><span><i class="pulse"></i>This session</span><span>live</span></div>
             <div class="readout-row"><span>Downloaded this visit</span><b id="ro-down">0 KB</b></div>
             <div class="readout-row"><span>Files processed here</span><b id="ro-files">0</b></div>
-            <div class="readout-row"><span>Bytes of your files uploaded</span><b class="zero">0</b></div>
+            <div class="readout-row"><span>Bytes of your files uploaded</span><b class="zero" id="ro-sent">0</b></div>
             <div class="readout-row"><span>Works offline</span><b id="ro-offline">Checking…</b></div>
             <div class="readout-actions">
               <button class="btn-ghost btn-sm" id="offline-btn"><span data-icon="cloud"></span>Save tools for offline use</button>
@@ -144,9 +145,9 @@
 
   <footer class="foot">
     <div class="wrap">
-      <span class="foot-word" id="foot-word" aria-hidden="true">NebulaPDF</span>
+      <span class="foot-word" id="foot-word" aria-hidden="true">Nebula</span>
       <div class="foot-row">
-        <p>Runs in your browser. Nothing is uploaded. Made by Aman, open source under the MIT license.</p>
+        <p>Runs in your browser. Nothing is uploaded unless you switch an AI tool to Claude. Made by Aman, open source under the MIT license.</p>
         <label class="switch"><input type="checkbox" id="calm-toggle"><span class="switch-track"><span class="switch-thumb"></span></span><span>Pause motion</span></label>
       </div>
     </div>
@@ -180,8 +181,10 @@
   <div class="cursor gone" id="cursor" aria-hidden="true"><div class="cursor-ring"><span class="cursor-label" id="cursor-label"></span></div><div class="cursor-dot"></div></div>
   <input type="file" id="file-input" class="hidden">
 
-  <script src="assets/icons.js?v=28"></script>
-  <script src="assets/engine.js?v=28"></script>
-  <script src="assets/app.js?v=28"></script>
+  <script src="assets/icons.js?v=29"></script>
+  <script src="assets/engine.js?v=29"></script>
+  <script src="assets/tools-image.js?v=29"></script>
+  <script src="assets/tools-ai.js?v=29"></script>
+  <script src="assets/app.js?v=29"></script>
 </body>
 </html>

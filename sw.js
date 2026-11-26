@@ -1,4 +1,4 @@
-/* NebulaPDF service worker: keeps the site and its tool libraries on the device, so it works offline.
+/* Nebula service worker: keeps the site and its tool libraries on the device, so it works offline.
    - The site's own files: fetched fresh when online (so new versions load at once), the saved copy when offline.
    - Libraries, fonts and OCR data from CDNs: their URLs carry a version and never change, so they're served from
      the saved copy and only downloaded the first time. */
@@ -24,7 +24,7 @@ self.addEventListener('fetch', e => {
     }));
     return;
   }
-  if (url.origin !== location.origin) return;
+  if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return; // the AI endpoint is never cached
   e.respondWith((async () => {
     const cache = await caches.open(SHELL);
     try {

@@ -1,4 +1,4 @@
-/* NebulaPDF engine: library loading, PDF helpers, page layout analysis, the Word/Excel writers and the tools.
+/* Nebula engine: library loading, PDF helpers, page layout analysis, the Word/Excel writers and the tools.
    Loaded before app.js. The page shell (app.js) provides progress(), showToast() and the tool screen. */
 
 /* ---------- Libraries, loaded on demand ---------- */
@@ -12,6 +12,7 @@ const CDN = {
   mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
   tesseract: 'https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js',
   pptx: 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js',
+  heic2any: 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
 };
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -733,6 +734,17 @@ const TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
 const say = t => !TOUCH ? t : t.replace(/\s*Shift-click picks a run\./g, '').replace(/ Press Enter when done, or Esc to undo\./g, ' Tap outside the line when done.')
   .replace(/\bClick/g, 'Tap').replace(/\bclick/g, 'tap');
 const hint = t => `<p class="hint">${say(t)}</p>`;
+// A segmented switch: marks the pressed button, and shows the panel named in data-show (hiding its siblings').
+function segPick(btn) {
+  const group = btn.closest('.seg');
+  group.querySelectorAll('[data-k]').forEach(b => {
+    b.setAttribute('aria-pressed', b === btn);
+    const panel = $(`${group.id}-${b.dataset.k}`) || (group.id === 'o-wkind' && $(b.dataset.k === 'text' ? 'o-wtext' : 'o-wlogo'));
+    panel?.classList.toggle('hidden', b !== btn);
+  });
+  group.dispatchEvent(new CustomEvent('pick', { detail: btn.dataset.k }));
+}
+const segValue = id => $(id)?.querySelector('[aria-pressed=true]')?.dataset.k;
 const STAGE = `<div class="stage">
   <div class="stage-bar"><button type="button" class="chip" onclick="stageGo(-1)">${icon('chevron-left')}Previous</button><span id="stage-label" class="mono">Loading…</span><button type="button" class="chip" onclick="stageGo(1)">Next${icon('chevron-right')}</button></div>
   <div id="stage-page" class="stage-page" data-cursor="cross"><div id="stage-marks" class="stage-marks"></div></div>
@@ -1332,24 +1344,53 @@ const TOOLS = {
     },
   },
   watermark: {
-    group: 'edit', name: 'Add watermark', icon: 'stamp', keys: 'stamp draft confidential',
-    desc: 'Stamp text such as DRAFT or CONFIDENTIAL across every page.',
+    group: 'edit', name: 'Add watermark', icon: 'stamp', keys: 'stamp draft confidential logo brand image',
+    desc: 'Stamp text such as DRAFT or CONFIDENTIAL, or your logo, across every page.',
     accept: PDF, btn: 'Add watermark', libs: ['pdflib'], batch: true,
-    options: () => inp('o-text', 'Watermark text', 'value="CONFIDENTIAL"') + row(
-      sel('o-angle', 'Direction', [['diag', 'Diagonal'], ['flat', 'Horizontal']]),
-      sel('o-color', 'Colour', [['grey', 'Grey'], ['red', 'Red'], ['blue', 'Blue']]),
-      sel('o-opacity', 'Strength', [['.2', 'Faint'], ['.35', 'Medium'], ['.6', 'Strong']])),
+    options: () => `<div class="seg" role="group" aria-label="Watermark type" id="o-wkind">
+        <button type="button" class="seg-btn" data-k="text" aria-pressed="true" onclick="segPick(this)">${icon('type')}Text</button>
+        <button type="button" class="seg-btn" data-k="logo" aria-pressed="false" onclick="segPick(this)">${icon('img')}Logo</button></div>
+      <div id="o-wtext" class="options-sub">${inp('o-text', 'Watermark text', 'value="CONFIDENTIAL"')}${row(
+        sel('o-angle', 'Direction', [['diag', 'Diagonal'], ['flat', 'Horizontal']]),
+        sel('o-color', 'Colour', [['grey', 'Grey'], ['red', 'Red'], ['blue', 'Blue']]))}</div>
+      <div id="o-wlogo" class="options-sub hidden">
+        <label class="field"><span class="field-label">Logo image (PNG with a transparent background works best)</span><input id="o-logo" type="file" accept="image/*" class="input file-pick"></label>
+        ${row(sel('o-lpos', 'Position', [['center', 'Centre'], ['br', 'Bottom right'], ['bl', 'Bottom left'], ['tr', 'Top right'], ['tl', 'Top left'], ['tile', 'Tiled across the page']]),
+          sel('o-lsize', 'Size', [['.35', 'Medium'], ['.18', 'Small'], ['.6', 'Large']]))}</div>
+      ${sel('o-opacity', 'Strength', [['.2', 'Faint'], ['.35', 'Medium'], ['.6', 'Strong'], ['1', 'Solid']])}`,
     async run([f]) {
+      const logoMode = segValue('o-wkind') === 'logo', opacity = +val('o-opacity');
+      const doc = await openPdf(f);
+      if (logoMode) {
+        const file = $('o-logo').files[0];
+        if (!file) throw new UserError('Choose a logo image first.');
+        const bmp = await createImageBitmap(file).catch(() => { throw new UserError(`${file.name} isn't an image this browser can open.`); });
+        const c = Object.assign(document.createElement('canvas'), { width: bmp.width, height: bmp.height });
+        c.getContext('2d').drawImage(bmp, 0, 0);
+        const img = await doc.embedPng(await canvasBytes(c, 'image/png')), pos = val('o-lpos'), k = +val('o-lsize');
+        for (const p of doc.getPages()) {
+          const fr = frame(p), w = Math.min(fr.w, fr.h) * (pos === 'tile' ? .22 : k), h = w * bmp.height / bmp.width, m = Math.min(fr.w, fr.h) * .05;
+          const spots = pos === 'tile'
+            ? Array.from({ length: Math.ceil(fr.h / (h * 2.2)) * Math.ceil(fr.w / (w * 1.8)) }, (_, i) => { const cols = Math.ceil(fr.w / (w * 1.8)); return [(i % cols) * w * 1.8 + (Math.floor(i / cols) % 2) * w * .9, Math.floor(i / cols) * h * 2.2 + m]; })
+            : [{ center: [(fr.w - w) / 2, (fr.h - h) / 2], br: [fr.w - w - m, fr.h - h - m], bl: [m, fr.h - h - m], tr: [fr.w - w - m, m], tl: [m, m] }[pos]];
+          for (const [x, y] of spots) {
+            const pt = fr.at(x, y + h);
+            p.drawImage(img, { x: pt.x, y: pt.y, width: w, height: h, rotate: PDFLib.degrees(fr.r), opacity });
+          }
+        }
+        save(await doc.save(), `${stem(f)}-watermarked.pdf`);
+        return 'Logo watermark added';
+      }
       const text = val('o-text').trim();
       if (!text) throw new UserError('Enter the watermark text.');
-      const doc = await openPdf(f), font = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold), diag = val('o-angle') === 'diag';
+      const font = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold), diag = val('o-angle') === 'diag';
       for (const p of doc.getPages()) {
         const fr = frame(p), a = diag ? Math.atan2(fr.h, fr.w) : 0, span = (diag ? Math.hypot(fr.w, fr.h) : fr.w) * .75;
         const size = Math.min(96, 96 * span / font.widthOfTextAtSize(text, 96)), tw = font.widthOfTextAtSize(text, size), capH = size * .7;
         // centre the text: step back half its length along its direction, and half its cap height along "up"
         const dir = [Math.cos(a), -Math.sin(a)], up = [-Math.sin(a), -Math.cos(a)];
         drawLabel(p, text, fr.w / 2 - dir[0] * tw / 2 - up[0] * capH / 2, fr.h / 2 - dir[1] * tw / 2 - up[1] * capH / 2,
-          { font, size, turn: a * 180 / Math.PI, opacity: +val('o-opacity'), color: PDFLib.rgb(...COLORS[val('o-color')]) });
+          { font, size, turn: a * 180 / Math.PI, opacity, color: PDFLib.rgb(...COLORS[val('o-color')]) });
       }
       save(await doc.save(), `${stem(f)}-watermarked.pdf`);
       return 'Watermark added';
@@ -1401,7 +1442,7 @@ const TOOLS = {
     desc: 'Add a password that is needed to open the file. Uses AES-256 encryption.',
     accept: PDF, btn: 'Protect PDF', libs: ['pdflib'], batch: true,
     options: () => row(inp('o-pw', 'Password', 'type="password" autocomplete="new-password"'), inp('o-pw2', 'Repeat password', 'type="password" autocomplete="new-password"')) +
-      hint('Keep this password safe. Nobody, including NebulaPDF, can recover it.'),
+      hint('Keep this password safe. Nobody, including Nebula, can recover it.'),
     async run([f]) {
       const pw = val('o-pw');
       if (!pw) throw new UserError('Choose a password.');
@@ -1455,9 +1496,9 @@ const COLORS = { black: [0, 0, 0], grey: [.45, .47, .5], red: [.8, .1, .1], blue
 // What to offer after a tool finishes, or when a file is dropped on the home page.
 const SUGGEST = {
   pdf: ['compress', 'merge', 'pdf2word', 'sign', 'split', 'organize', 'pdf2excel', 'protect', 'pdf2jpg', 'watermark', 'numbers', 'ocr'],
-  image: ['jpg2pdf', 'ocr'], docx: ['word2pdf'], sheet: ['excel2pdf'], text: ['text2pdf'],
+  image: ['jpg2pdf', 'ocr'], docx: ['word2pdf'], sheet: ['excel2pdf'], text: ['text2pdf'], pptx: [],
 };
-const kindOf = f => isPdf(f) ? 'pdf' : f.type.startsWith('image/') ? 'image' : /\.docx$/i.test(f.name) ? 'docx' : /\.(xlsx|xls|csv|ods)$/i.test(f.name) ? 'sheet' : /\.(txt|md|log|json)$/i.test(f.name) ? 'text' : null;
+const kindOf = f => isPdf(f) ? 'pdf' : f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name) ? 'image' : /\.pptx$/i.test(f.name) ? 'pptx' : /\.docx$/i.test(f.name) ? 'docx' : /\.(xlsx|xls|csv|ods)$/i.test(f.name) ? 'sheet' : /\.(txt|md|log|json)$/i.test(f.name) ? 'text' : null;
 
 /* ---------- Text layout for jsPDF (Text to PDF, Word to PDF) ---------- */
 function flow(face = 'helvetica') {
