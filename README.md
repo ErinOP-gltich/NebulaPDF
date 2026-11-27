@@ -18,7 +18,7 @@ The AI tools run an open-source model on your device too. Each one has an option
 
 | Group | Tools |
 |---|---|
-| Organize | Merge PDFs, Split PDF, Remove pages, Organize pages (reorder, turn, delete), Rotate PDF |
+| Organize | Merge files (PDFs, images, Word, Excel, PowerPoint and text into one PDF), Split PDF, Remove pages, Organize pages (reorder, turn, delete), Rotate PDF |
 | Optimize | Compress PDF (lossless or image-based), Repair PDF, Read text (OCR, images and scanned PDFs) |
 | Convert to PDF | Images to PDF, Word to PDF, Excel to PDF, PowerPoint to PDF, Text to PDF |
 | Convert from PDF | PDF to images (JPG/PNG), PDF to Word, PDF to PowerPoint, PDF to Excel |

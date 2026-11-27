@@ -205,7 +205,7 @@ const sky = (() => {
 /* ---------- tool grid: a row of the most used tools, then every group under its own heading ---------- */
 let filter = 'all';
 // what goes in and what comes out, shown as tags on each card
-const IO = { merge: 'PDF → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', organize: 'PDF → PDF', rotate: 'PDF → PDF', compress: 'PDF → PDF', repair: 'PDF → PDF',
+const IO = { merge: 'Any → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', organize: 'PDF → PDF', rotate: 'PDF → PDF', compress: 'PDF → PDF', repair: 'PDF → PDF',
   ocr: 'PDF / Image → Text', jpg2pdf: 'Image → PDF', word2pdf: 'DOCX → PDF', excel2pdf: 'XLSX → PDF', text2pdf: 'Text → PDF', pdf2jpg: 'PDF → JPG / PNG',
   pdf2word: 'PDF → DOCX', pdf2ppt: 'PDF → PPTX', pdf2excel: 'PDF → XLSX', sign: 'PDF → PDF', edittext: 'PDF → PDF', fillform: 'PDF → PDF', numbers: 'PDF → PDF',
   watermark: 'PDF → PDF', crop: 'PDF → PDF', redact: 'PDF → PDF', protect: 'PDF → PDF', unlock: 'PDF → PDF',
@@ -313,6 +313,7 @@ function route(files) {
   const kind = kindOf(files[0]);
   if (!kind) return showToast(`${files[0].name} isn't a file Nebula can work with. Try a PDF, image, Word, PowerPoint, Excel or text file.`, true);
   const same = files.filter(f => kindOf(f) === kind);
+  if (files.length > 1 && files.some(f => kindOf(f) && kindOf(f) !== kind)) return openTool('merge', null, files.filter(kindOf)); // mixed types: combine them
   let ids = SUGGEST[kind];
   if (kind === 'pdf' && same.length > 1) ids = ['merge', ...ids.filter(i => i !== 'merge')];
   if (ids.length === 1) return openTool(ids[0], null, same);

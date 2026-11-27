@@ -696,3 +696,48 @@ TOOLS.ppt2pdf = {
   },
 };
 SUGGEST.pptx = ['ppt2pdf'];
+
+/* ---------- Merge anything: any file the converters can read becomes PDF pages first ---------- */
+const MERGE_ANY = '.pdf,application/pdf,image/*,.heic,.heif,.docx,.pptx,.xlsx,.xls,.csv,.ods,.txt,.md';
+// Run a converter tool on one file and hand back its PDF bytes, without downloading anything.
+async function convertToPdf(f) {
+  const kind = kindOf(f);
+  if (kind === 'pdf') return f.arrayBuffer();
+  if (kind === 'image') {
+    const bmp = await decodeImage(f), s = Math.min(1, 842 / Math.max(bmp.width, bmp.height) / .75);
+    const doc = await PDFLib.PDFDocument.create();
+    await addImagePage(doc, { bytes: toJpeg(bmp, bmp.width, bmp.height), w: bmp.width * .75 * s, h: bmp.height * .75 * s });
+    return doc.save();
+  }
+  if (kind === 'text') {
+    await need('jspdf');
+    const w = flow();
+    (await f.text()).split('\n').forEach(line => w.text(line, { size: 11, after: 0 }));
+    return w.doc.output('arraybuffer');
+  }
+  const id = { docx: 'word2pdf', sheet: 'excel2pdf', pptx: 'ppt2pdf' }[kind];
+  if (!id) throw new UserError(`${f.name} can't be merged. Use PDFs, images, Word, Excel, PowerPoint or text files.`);
+  await need(...TOOLS[id].libs);
+  const prev = saveSink;
+  saveSink = [];
+  try { await TOOLS[id].run([f]); return await new Blob([saveSink[0].data]).arrayBuffer(); }
+  finally { saveSink = prev; }
+}
+Object.assign(TOOLS.merge, {
+  name: 'Merge files', keys: 'combine join merge pdf images word excel powerpoint photos documents any',
+  desc: 'Combine PDFs, images, Word, Excel, PowerPoint and text files into one PDF, in the order you choose.',
+  accept: MERGE_ANY, drop: 'Drop files here',
+  note: 'Add two or more files: PDFs, images, Word, Excel, PowerPoint or text. Drag the arrows to set the order.',
+  btn: 'Merge into one PDF',
+  async run(files) {
+    if (files.length < 2) throw new UserError('Add at least two files to merge.');
+    const out = await PDFLib.PDFDocument.create();
+    for (const [k, f] of files.entries()) {
+      progress(`Adding ${f.name}`, k / files.length);
+      const src = await openPdf(new File([await convertToPdf(f)], f.name));
+      (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+    }
+    save(await out.save(), 'merged.pdf');
+    return `Merged ${plural(files.length, 'file')} into ${plural(out.getPageCount(), 'page')}`;
+  },
+});
