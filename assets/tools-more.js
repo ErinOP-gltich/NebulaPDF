@@ -455,3 +455,25 @@ async function addContentsPage(doc, marks) {
   tocPages[0].drawText('Contents', { x: M, y: H - M - 20, size: 26, font: bold, color: PDFLib.rgb(.06, .06, .1) });
   return tocCount;
 }
+
+/* ---------- Protect: a password to open, and/or limits on printing, copying and editing ---------- */
+Object.assign(TOOLS.protect, {
+  desc: 'Lock a PDF with a password, or stop people printing, copying or editing it. AES-256 encryption.',
+  keys: `${TOOLS.protect.keys} permissions restrict print copy edit`,
+  options: () => sel('o-pmode', 'Protection', [['open', 'A password is needed to open it'], ['limit', 'Opens freely, but with limits']]) +
+    row(inp('o-pw', 'Password', 'type="password" autocomplete="new-password"'), inp('o-pw2', 'Repeat password', 'type="password" autocomplete="new-password"')) +
+    `<div class="field"><span class="field-label">Let people</span><div class="check-grid">${check('o-aprint', 'Print it')}${check('o-acopy', 'Copy text and pictures')}${check('o-aedit', 'Edit, comment and fill forms')}</div></div>` +
+    hint('With limits, the password is the one that lifts them. Keep it safe: nobody, including Nebula, can recover it. Most PDF apps respect these limits, but they can’t stop screenshots.'),
+  async run([f]) {
+    const pw = val('o-pw'), open = val('o-pmode') === 'open';
+    if (!pw) throw new UserError('Type a password first.');
+    if (pw !== val('o-pw2')) throw new UserError("The passwords don't match.");
+    const edit = $('o-aedit').checked, permissions = { printing: $('o-aprint').checked ? 'highResolution' : false, copying: $('o-acopy').checked, modifying: edit, annotating: edit, fillingForms: edit, documentAssembly: edit, contentAccessibility: true };
+    if (!open && permissions.printing && permissions.copying && edit) throw new UserError('Untick at least one thing to limit, or choose a password to open it.');
+    const doc = await openPdf(f);
+    doc.encrypt({ userPassword: open ? pw : '', ownerPassword: pw, permissions });
+    save(await doc.save(), `${stem(f)}-protected.pdf`);
+    return open ? 'Protected with a password' : 'Limits added';
+  },
+});
+TOOLS.unlock.desc = 'Take the password, or the limits on printing and copying, off a PDF, as long as you know the password.';
