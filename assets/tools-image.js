@@ -227,7 +227,7 @@ function setCropRatio(r) {
 Object.assign(TOOLS, {
   pdfmeta: {
     group: 'security', name: 'View PDF metadata', icon: 'info', keys: 'metadata properties info author title producer creator dates version details inspect',
-    desc: 'See the title, author, dates, page count, PDF version, page sizes and more hidden in a PDF.',
+    desc: 'See what a PDF says about itself: title, author, dates, software, page sizes and more.',
     accept: PDF, btn: 'Download as JSON', libs: ['pdflib'],
     options: () => `<dl class="meta-table" id="o-meta"><div><dt>Reading…</dt><dd></dd></div></dl>
       <div class="row"><button type="button" class="chip" onclick="navigator.clipboard.writeText(JSON.stringify(window.lastMeta, null, 2)).then(() => showToast('Copied'))">${icon('copy')}Copy as JSON</button></div>`,
@@ -243,7 +243,7 @@ Object.assign(TOOLS, {
   },
   pdfclean: {
     group: 'security', name: 'Remove PDF metadata', icon: 'broom', keys: 'metadata strip clean privacy author remove anonymize scrub xmp',
-    desc: 'Make a privacy-clean copy: removes the title, author, software, dates and hidden XMP data.',
+    desc: 'Save a privacy-clean copy, without the title, author, software, dates or hidden XMP data.',
     accept: PDF, btn: 'Remove metadata', libs: ['pdflib'], batch: true,
     options: () => hint('Removes the document info (title, author, subject, keywords, creator, producer, dates), XMP metadata streams and editing-app leftovers. The pages themselves are unchanged.'),
     async run([f]) {
@@ -271,7 +271,7 @@ Object.assign(TOOLS, {
 
   imgresize: {
     group: 'image', name: 'Resize image', icon: 'resize', keys: 'resize scale dimensions width height pixels smaller bigger',
-    desc: 'Resize images to exact pixel dimensions or by percentage.',
+    desc: 'Resize images to exact pixels or by percentage.',
     accept: IMG, batch: true, drop: 'Drop images here', note: 'JPG, PNG, WebP, HEIC… Add several to resize them all.', btn: 'Resize',
     options: () => `<div class="seg" role="group" id="o-unit"><button type="button" class="seg-btn" data-k="px" aria-pressed="true" onclick="segPick(this)">Pixels</button><button type="button" class="seg-btn" data-k="pct" aria-pressed="false" onclick="segPick(this)">Percent</button></div>
       <div id="o-unit-px" class="options-sub">${row(inp('o-w', 'Width (px)', 'type="number" min="1" inputmode="numeric"'), inp('o-h', 'Height (px)', 'type="number" min="1" inputmode="numeric"'))}
@@ -303,7 +303,7 @@ Object.assign(TOOLS, {
   },
   imgcrop: {
     group: 'image', name: 'Crop image', icon: 'crop-img', keys: 'crop trim cut aspect ratio square',
-    desc: 'Crop an image by dragging a box, or by exact position and size.', wide: true,
+    desc: 'Crop an image by dragging a box, or by typing an exact size.', wide: true,
     accept: IMG, drop: 'Drop an image here', note: 'JPG, PNG, WebP, HEIC…', btn: 'Crop image',
     options: () => `${row(sel('o-ratio', 'Shape', [['0', 'Free'], ['1', 'Square 1:1'], ['1.3333', '4:3'], ['1.5', '3:2'], ['1.7778', '16:9'], ['0.75', '3:4'], ['0.5625', '9:16']]), sel('o-fmt', 'Save as', FORMATS))}
       <div class="img-stage" id="o-istage" data-cursor="cross"><div class="crop-box" id="o-cropbox"></div></div>
@@ -371,7 +371,7 @@ Object.assign(TOOLS, {
   },
   heic2jpg: {
     group: 'image', name: 'HEIC to JPG', icon: 'camera', keys: 'heic heif iphone photo convert jpg jpeg apple',
-    desc: 'Turn iPhone HEIC photos into JPG images that open everywhere.',
+    desc: 'Turn iPhone HEIC photos into JPGs that open everywhere.',
     accept: '.heic,.heif,image/heic,image/heif', batch: true, drop: 'Drop HEIC photos here', note: '.heic or .heif files. Add several to convert them all.', btn: 'Convert to JPG',
     options: () => row(sel('o-fmt', 'Convert to', [['jpeg', 'JPG'], ['png', 'PNG']]), qualityField('o-q', 90)),
     async run([f]) {
@@ -383,7 +383,7 @@ Object.assign(TOOLS, {
   },
   removebg: {
     group: 'image', also: ['ai'], name: 'Remove background', icon: 'cutout', keys: 'remove background cutout transparent png ai erase backdrop subject product',
-    desc: 'Cut out the subject of a photo and get a transparent PNG. Runs on your device with an AI model.',
+    desc: 'Cut out the subject of a photo as a transparent PNG, with an AI model on your device.',
     accept: IMG, drop: 'Drop a photo here', note: 'JPG, PNG, WebP, HEIC…', btn: 'Remove background', ai: 'device',
     options: () => row(sel('o-bgmode', 'New background', [['none', 'Transparent'], ['#ffffff', 'White'], ['#000000', 'Black'], ['custom', 'A colour…']]),
       `<label class="field hidden" id="o-bgc-box"><span class="field-label">Colour</span><input id="o-bgc" type="color" value="#2fe0d0" class="input color-pick"></label>`) +
@@ -401,7 +401,7 @@ Object.assign(TOOLS, {
   },
   upscale: {
     group: 'ai', also: ['image'], name: 'AI image upscaler', icon: 'upscale', keys: 'upscale enlarge super resolution enhance bigger sharper 2x 4x 8x ai',
-    desc: 'Enlarge images 2×, 4× or 8× with an AI model that adds real detail instead of blur. Runs on your device.',
+    desc: 'Enlarge images 2×, 4× or 8× with an AI model that adds real detail, not blur.',
     accept: IMG, drop: 'Drop an image here', note: 'Works best on small images, up to about 1000 px.', btn: 'Upscale', ai: 'device',
     options: () => row(sel('o-scale', 'Enlarge', [['2', '2×'], ['4', '4×'], ['8', '8× (4× AI, then smooth 2×)']]), sel('o-fmt', 'Save as', [['png', 'PNG'], ['jpeg', 'JPG'], ['webp', 'WebP']])) +
       `<div id="o-out"></div>` + hint('Uses Swin2SR, an open-source super-resolution model trained on real photos (54 MB with a GPU, 19 MB without, downloaded once). It works through the picture in small tiles: a few seconds per tile with a GPU (WebGPU), much longer without one.'),
@@ -422,7 +422,7 @@ Object.assign(TOOLS, {
   },
   enhance: {
     group: 'image', also: ['ai'], name: 'Image enhancer', icon: 'enhance', keys: 'enhance improve fix photo brightness contrast sharpen denoise noise colour color auto correct old ai',
-    desc: 'Fix dull, dark or noisy photos: automatic levels and colour, then brightness, contrast, colour, warmth, sharpening and noise reduction.', wide: true,
+    desc: 'Fix dull, dark or noisy photos in one click, then fine-tune light, colour and sharpness.', wide: true,
     accept: IMG, drop: 'Drop a photo here', note: 'JPG, PNG, WebP, HEIC…', btn: 'Save image', ai: 'device',
     options: () => `${check('o-auto', 'Automatic levels and colour balance')}
       <div class="sliders">${ENHANCE_SLIDERS.map(([k, label, min, max]) => `<label class="field"><span class="field-label">${label} <b class="mono" id="o-${k}-v">0</b></span><input id="o-${k}" type="range" min="${min}" max="${max}" value="0"></label>`).join('')}</div>

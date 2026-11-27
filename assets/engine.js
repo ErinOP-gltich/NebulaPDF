@@ -822,7 +822,7 @@ const GROUPS = [['organize', 'Organize'], ['optimize', 'Optimize'], ['to', 'Conv
 const TOOLS = {
   merge: {
     group: 'organize', name: 'Merge PDFs', icon: 'combine', keys: 'combine join', featured: true,
-    desc: 'Combine several PDFs into one, in the order you list them.',
+    desc: 'Combine several PDFs into one, in the order you choose.',
     accept: PDF, multiple: true, ordered: true, note: 'Add two or more PDFs, then drag the arrows to set the order.',
     btn: 'Merge PDFs', libs: ['pdflib'],
     async run(files) {
@@ -885,7 +885,7 @@ const TOOLS = {
   },
   organize: {
     group: 'organize', name: 'Organize pages', icon: 'layout-grid', keys: 'reorder sort move delete rotate',
-    desc: 'Reorder, turn or delete individual pages while you see them.',
+    desc: 'Reorder, rotate or delete pages while you see them.',
     accept: PDF, btn: 'Save PDF', libs: ['pdflib', 'pdfjs'], wide: true,
     options: () => `<div id="o-thumbs" class="thumbs"><p class="hint">Loading pages…</p></div>`,
     async ready([f]) {
@@ -917,7 +917,7 @@ const TOOLS = {
   },
   rotate: {
     group: 'organize', name: 'Rotate PDF', icon: 'rotate-cw', keys: 'turn orientation',
-    desc: 'Turn all pages, or just the ones you pick, a quarter or half turn.',
+    desc: 'Turn every page, or just the ones you pick, a quarter or half turn.',
     accept: PDF, btn: 'Rotate PDF', libs: ['pdflib', 'pdfjs'], batch: true,
     options: () => row(sel('o-angle', 'Turn pages', [['90', 'A quarter turn clockwise'], ['270', 'A quarter turn counter-clockwise'], ['180', 'Upside down']]),
       inp('o-ranges', 'Pages (empty for all)', 'placeholder="All pages" inputmode="numeric"')) + PICKER,
@@ -965,7 +965,7 @@ const TOOLS = {
   },
   ocr: {
     group: 'optimize', name: 'Read text (OCR)', icon: 'scan-text', keys: 'ocr scan recognize extract copy text image',
-    desc: 'Pull editable text out of scanned PDFs and photos of documents.',
+    desc: 'Turn scanned PDFs and photos of documents into text you can copy and search.',
     accept: `${PDF},image/*`, note: 'A scanned PDF, or a JPG or PNG image', btn: 'Read text', libs: ['tesseract', 'pdfjs'],
     options: () => sel('o-lang', 'Language in the document', OCR_LANGS) +
       `<div id="o-out" class="field hidden"><span class="field-label">Text found</span><textarea id="o-result" class="input" readonly></textarea>
@@ -1048,7 +1048,7 @@ const TOOLS = {
   },
   excel2pdf: {
     group: 'to', name: 'Excel to PDF', icon: 'sheet', keys: 'xlsx xls csv ods spreadsheet sheet table',
-    desc: 'Turn each sheet of a spreadsheet into a clean table. The first row becomes the header.',
+    desc: 'Turn each sheet into a clean table, with the first row as the header.',
     accept: '.xlsx,.xls,.csv,.ods', drop: 'Drop spreadsheets here', note: '.xlsx, .xls, .csv or .ods. Add several to convert them all.', batch: true,
     btn: 'Convert to PDF', libs: ['xlsx', 'jspdf', 'autotable'],
     async run([f]) {
@@ -1091,7 +1091,7 @@ const TOOLS = {
 
   pdf2jpg: {
     group: 'from', name: 'PDF to images', icon: 'image', keys: 'jpg jpeg png picture export',
-    desc: 'Save every page, or the pages you pick, as JPG or PNG images.',
+    desc: 'Save every page, or just the ones you pick, as JPG or PNG.',
     accept: PDF, btn: 'Convert to images', libs: ['pdfjs'], batch: true,
     options: () => row(sel('o-fmt', 'Format', [['jpeg', 'JPG'], ['png', 'PNG']]), sel('o-dpi', 'Quality', [['150', 'Standard (150 dpi)'], ['300', 'High (300 dpi)'], ['72', 'Small (72 dpi)']]),
       inp('o-ranges', 'Pages (empty for all)', 'placeholder="All pages" inputmode="numeric"')) + PICKER + hint('Several pages download together as a .zip.'),
@@ -1109,7 +1109,7 @@ const TOOLS = {
   },
   pdf2word: {
     group: 'from', name: 'PDF to Word', icon: 'file-type', keys: 'docx doc editable microsoft', featured: true,
-    desc: 'An editable .docx that keeps fonts, colours, pictures, tables and the page layout. Scanned pages are read with OCR.',
+    desc: 'Get an editable .docx that keeps the fonts, colours, pictures, tables and layout. Scanned pages are read with OCR.',
     accept: PDF, btn: 'Convert to Word', libs: ['pdfjs', 'jszip'], batch: true,
     options: () => sel('o-layout', 'Layout', [['exact', 'Exact: looks just like the PDF'], ['flow', 'Flowing: easiest to edit']]) +
       row(check('o-ocr', 'Read text on scanned pages'), sel('o-lang', 'Scan language', OCR_LANGS)) +
@@ -1164,7 +1164,7 @@ const TOOLS = {
   },
   pdf2excel: {
     group: 'from', name: 'PDF to Excel', icon: 'table', keys: 'xlsx spreadsheet table data csv',
-    desc: 'Tables land in real columns with real numbers. Scanned pages are read with OCR.',
+    desc: 'Pull tables into real columns with real numbers. Scanned pages are read with OCR.',
     accept: PDF, btn: 'Convert to Excel', libs: ['pdfjs', 'xlsx'], batch: true,
     options: () => sel('o-sheets', 'Sheets', [['page', 'One sheet per page'], ['one', 'Everything on one sheet']]) +
       row(check('o-ocr', 'Read text on scanned pages'), sel('o-lang', 'Scan language', OCR_LANGS)) +
@@ -1198,7 +1198,7 @@ const TOOLS = {
 
   sign: {
     group: 'edit', name: 'Sign PDF', icon: 'signature', keys: 'signature esign autograph', featured: true, wide: true,
-    desc: 'Draw your signature and place it anywhere on the document.',
+    desc: 'Draw your signature and place it anywhere on the page.',
     accept: PDF, btn: 'Save signed PDF', libs: ['pdflib', 'pdfjs'],
     options: () => `<div class="field"><span class="field-label">Draw your signature</span><canvas id="pad" class="pad" width="900" height="260" data-cursor="cross"></canvas>
         <div class="row"><button type="button" class="chip" onclick="$('pad').getContext('2d').clearRect(0, 0, 900, 260)">${icon('trash-2')}Clear</button></div></div>
@@ -1284,7 +1284,7 @@ const TOOLS = {
   },
   fillform: {
     group: 'edit', name: 'Fill in a form', icon: 'form', keys: 'form fields fill acroform checkbox tick application',
-    desc: 'Type into a PDF form’s fields, tick its boxes and choose its options, then save it, or flatten it so it can’t be changed.',
+    desc: 'Type into a form’s fields and tick its boxes, then save it, or flatten it so it can’t be changed.',
     accept: PDF, btn: 'Save filled form', libs: ['pdflib'],
     options: () => `<div id="o-form" class="form-fields"><p class="hint">Reading the form…</p></div>` + check('o-flatten', 'Flatten: make the answers part of the page, so they can’t be changed', false),
     async ready([f]) {
@@ -1345,7 +1345,7 @@ const TOOLS = {
   },
   watermark: {
     group: 'edit', name: 'Add watermark', icon: 'stamp', keys: 'stamp draft confidential logo brand image',
-    desc: 'Stamp text such as DRAFT or CONFIDENTIAL, or your logo, across every page.',
+    desc: 'Stamp DRAFT, CONFIDENTIAL or your logo across every page.',
     accept: PDF, btn: 'Add watermark', libs: ['pdflib'], batch: true,
     options: () => `<div class="seg" role="group" aria-label="Watermark type" id="o-wkind">
         <button type="button" class="seg-btn" data-k="text" aria-pressed="true" onclick="segPick(this)">${icon('type')}Text</button>
@@ -1398,7 +1398,7 @@ const TOOLS = {
   },
   crop: {
     group: 'edit', name: 'Crop PDF', icon: 'crop', keys: 'trim margins cut', wide: true,
-    desc: 'Trim margins by drawing the area to keep. The same crop applies to every page.',
+    desc: 'Trim the margins by drawing the area to keep. The crop applies to every page.',
     accept: PDF, btn: 'Crop PDF', libs: ['pdflib', 'pdfjs'],
     options: () => `${STAGE}${hint('Drag across the page to mark the area to keep.')}`,
     ready: ([f]) => stageInit(f, 'crop'),
@@ -1416,7 +1416,7 @@ const TOOLS = {
   },
   redact: {
     group: 'edit', name: 'Redact PDF', icon: 'eye-off', keys: 'black out hide censor remove sensitive', wide: true,
-    desc: 'Black out text and images for good, not just cover them up.',
+    desc: 'Black out text and images for good, not just cover them.',
     accept: PDF, btn: 'Save redacted PDF', libs: ['pdflib', 'pdfjs'],
     options: () => `${STAGE}${hint("Drag over anything to hide. Click a box to remove it. Pages you redact are flattened into images, so the hidden content can't be recovered.")}`,
     ready: ([f]) => stageInit(f, 'redact'),
@@ -1439,7 +1439,7 @@ const TOOLS = {
 
   protect: {
     group: 'security', name: 'Protect PDF', icon: 'lock-keyhole', keys: 'password encrypt lock secure',
-    desc: 'Add a password that is needed to open the file. Uses AES-256 encryption.',
+    desc: 'Lock a PDF with a password, using AES-256 encryption.',
     accept: PDF, btn: 'Protect PDF', libs: ['pdflib'], batch: true,
     options: () => row(inp('o-pw', 'Password', 'type="password" autocomplete="new-password"'), inp('o-pw2', 'Repeat password', 'type="password" autocomplete="new-password"')) +
       hint('Keep this password safe. Nobody, including Nebula, can recover it.'),
@@ -1455,7 +1455,7 @@ const TOOLS = {
   },
   unlock: {
     group: 'security', name: 'Unlock PDF', icon: 'lock-keyhole-open', keys: 'password decrypt remove security unprotect',
-    desc: 'Remove the password from a PDF you have the password for.',
+    desc: 'Take the password off a PDF, as long as you know it.',
     accept: PDF, btn: 'Unlock PDF', libs: ['pdflib'], batch: true,
     options: () => inp('o-pw', 'Current password', 'type="password" autocomplete="current-password"') +
       hint('Leave this blank if the PDF opens without a password but blocks printing or copying.'),

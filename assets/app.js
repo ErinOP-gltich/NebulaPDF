@@ -723,7 +723,7 @@ async function offlineStatus() {
   if (!window.caches) return void ($('ro-offline').textContent = 'Not in this browser');
   const c = await caches.open('nebula-libs');
   const have = (await Promise.all(LIB_URLS.map(u => c.match(u, { ignoreVary: true })))).filter(Boolean).length;
-  $('ro-offline').textContent = have === LIB_URLS.length ? 'Ready' : `${have} of ${LIB_URLS.length} libraries saved`;
+  $('ro-offline').textContent = have === LIB_URLS.length ? 'Ready' : `${have} of ${LIB_URLS.length} parts saved`;
   $('offline-btn').classList.toggle('hidden', have === LIB_URLS.length);
 }
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -746,7 +746,7 @@ $('offline-btn').onclick = async () => {
     let k = 0;
     for (const u of LIB_URLS) {
       if (!(await c.match(u, { ignoreVary: true }))) await c.add(new Request(u, { mode: 'cors' }));
-      $('ro-offline').textContent = `${++k} of ${LIB_URLS.length} libraries saved`;
+      $('ro-offline').textContent = `${++k} of ${LIB_URLS.length} parts saved`;
     }
     // the fonts (the stylesheet and the font files it points to); without them the page still works, in system fonts
     try {

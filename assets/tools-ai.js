@@ -50,7 +50,7 @@ const useCloud = () => !!AI.cloud && (enginePref() === 'cloud' || !!TOOLS[curren
 
 /* ---------- Claude, through /api/ai (server-sent events) ---------- */
 async function cloud(task, body, onText) {
-  if (!await cloudReady()) throw new UserError('Claude isn’t set up on this site yet. Switch to “On this device”.');
+  if (!await cloudReady()) throw new UserError('Claude in the cloud is coming soon. Switch to “On this device” for now.');
   const payload = JSON.stringify({ task, ...body });
   if (payload.length > 4_300_000) throw new UserError('This is too much to send in one request. Try a shorter document or fewer images.');
   progress('Asking Claude');
@@ -88,13 +88,13 @@ async function cloud(task, body, onText) {
 /* ---------- the on-device model, through WebLLM (Apache-2.0) ---------- */
 let llm = null;
 async function localLLM() {
-  if (!await hasWebGPU()) throw new UserError('This browser can’t run the on-device model (it needs WebGPU: desktop Chrome or Edge, or Safari 26). Switch to Claude, or use one of those browsers.');
+  if (!await hasWebGPU()) throw new UserError(`This browser can’t run the on-device model yet. It needs WebGPU, which desktop Chrome, Edge and Safari 26 have.${AI.cloud ? ' Or switch to Claude.' : ''}`);
   llm ??= (async () => {
     const W = await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.89/+esm');
     return W.CreateMLCEngine(LOCAL_MODEL, {
       initProgressCallback: r => progress(r.progress < 1 ? `Loading the on-device model ${Math.round(r.progress * 100)}% (first time: about 1.1 GB)` : 'Model ready', r.progress),
     }, { context_window_size: 8192 });
-  })().catch(e => { llm = null; throw new UserError(`The on-device model couldn’t start (${e.message || e}). Close other heavy tabs and try again, or switch to Claude.`); });
+  })().catch(e => { llm = null; throw new UserError(`The on-device model couldn’t start (${e.message || e}). Close other heavy tabs and try again${AI.cloud ? ', or switch to Claude' : ''}.`); });
   return llm;
 }
 async function local(messages, { json, maxTokens = 1400, onText } = {}) {
@@ -154,7 +154,7 @@ async function docText(f, cap) {
   if (!used && parts.length) { text = parts[0].slice(0, cap); used = 1; }
   const unit = isPdf(f) ? 'pages' : /\.pptx$/i.test(f.name) ? 'slides' : 'sections';
   const note = used < parts.length ? (total ? `Read the first ${used} of ${total} ${unit}: the rest is too long for ${cap === LOCAL_CHARS ? 'the on-device model at once' : 'one request'}.` : `Read the first ${Math.round(text.length / 1000)}k characters: the rest is too long for one request.`) : '';
-  if (!text.trim()) throw new UserError('This document has no text to work with.');
+  if (!text.trim()) throw new UserError('This document has no text to work with. If it’s a scan, run Read text (OCR) first.');
   return f.__text = { text, note, cap };
 }
 const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main', NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -322,7 +322,7 @@ async function translateXml(xmlText, ns, target) {
 Object.assign(TOOLS, {
   aisummary: {
     group: 'ai', name: 'AI PDF summarizer', icon: 'summary', keys: 'summarize summary tldr key points action items digest ai brief abstract', ai: 'both', featured: false,
-    desc: 'Turn a long PDF into a short summary, key points and action items.',
+    desc: 'Turn a long document into a short summary, key points and action items.',
     accept: DOC, drop: 'Drop a document here', note: 'PDF, Word, PowerPoint or text', btn: 'Summarize',
     options: () => ENGINE + row(sel('o-len', 'Length', [['medium', 'Medium'], ['short', 'Short'], ['detailed', 'Detailed']]), inp('o-focus', 'Focus on (optional)', 'placeholder="e.g. risks, dates, costs"')) + '<div id="o-ai"></div>',
     afterOptions: () => refreshEngine(),
@@ -354,7 +354,7 @@ Object.assign(TOOLS, {
   },
   airesume: {
     group: 'ai', name: 'AI resume analyzer', icon: 'resume', keys: 'resume cv review ats job application feedback career hire score ai', ai: 'both',
-    desc: 'Review a resume for strengths, gaps, ATS issues and concrete improvements, optionally against a job description.',
+    desc: 'Get a score, strengths, gaps, ATS checks and specific fixes, optionally against a job ad.',
     accept: DOC, drop: 'Drop a resume here', note: 'PDF, Word or text', btn: 'Analyze resume',
     options: () => ENGINE + `<label class="field"><span class="field-label">Job description (optional, for a tailored review)</span><textarea id="o-job" class="input" placeholder="Paste the job ad here"></textarea></label><div id="o-ai"></div>`,
     afterOptions: () => refreshEngine(),
@@ -378,7 +378,7 @@ Object.assign(TOOLS, {
   },
   aiocr: {
     group: 'ai', name: 'AI OCR', icon: 'eye', keys: 'ocr screenshot image text extract read handwriting scan copy ai vision', ai: 'both',
-    desc: 'Pull clean, readable text out of screenshots, photos and scans, including tables.',
+    desc: 'Pull clean text out of screenshots, photos and scans, tables included.',
     accept: `${IMG},${PDF}`, multiple: true, drop: 'Drop screenshots or images here', note: 'Images, or a scanned PDF (up to 8 pages)', btn: 'Extract text',
     cloudSends: 'the images',
     localNote: 'Private: runs Tesseract text recognition on your device. Claude reads messy screenshots, handwriting and tables much better.',
@@ -414,7 +414,7 @@ Object.assign(TOOLS, {
   },
   airecommend: {
     group: 'ai', name: 'AI tool finder', icon: 'compass', keys: 'recommend suggest which tool help find what should i use goal ai assistant', ai: 'both',
-    desc: 'Describe what you want to do, and get the right Nebula tools for it.',
+    desc: 'Say what you want to do, and get the right Nebula tools for it.',
     btn: 'Find tools', cloudSends: 'what you type',
     localNote: 'Private: matches your words against the tools on your device. Claude understands goals described in your own words better.',
     options: () => ENGINE + `<label class="field"><span class="field-label">What do you want to do?</span><textarea id="o-goal" class="input" placeholder="e.g. I scanned a contract on my phone and need to sign it and email it under 2 MB"></textarea></label>
@@ -434,7 +434,7 @@ Object.assign(TOOLS, {
           const hay = `${t.name} ${t.desc} ${TOOLS[t.id].keys}`.toLowerCase(), hit = terms.filter(w => hay.includes(w));
           return { id: t.id, s: hit.reduce((a, w) => a + (t.name.toLowerCase().includes(w) ? 3 : 1), 0), hit };
         }).filter(p => p.s > 0).sort((a, b) => b.s - a.s).slice(0, 3).map(p => ({ id: p.id, reason: `Matches “${p.hit.slice(0, 3).join('”, “')}”.` }));
-        if (!picks.length) throw new UserError('No tool matched those words. Try describing it differently, or switch to Claude.');
+        if (!picks.length) throw new UserError(`No tool matched those words. Try describing it another way${AI.cloud ? ', or switch to Claude' : ''}.`);
       }
       outBox().innerHTML = `<div class="ai-card"><div class="tool-picks">${picks.filter(p => TOOLS[p.id]).map((p, i) => `<button type="button" class="pick-card" data-id="${p.id}" style="--i:${i}">
         <span class="card-icon">${icon(TOOLS[p.id].icon)}</span><span><b>${esc(TOOLS[p.id].name)}</b><small>${esc(p.reason)}</small></span>${icon('open')}</button>`).join('')}</div>${tip ? `<p class="hint">${esc(tip)}</p>` : ''}</div>`;
@@ -444,7 +444,7 @@ Object.assign(TOOLS, {
   },
   aichat: {
     group: 'ai', name: 'Chat with PDF', icon: 'chat', keys: 'chat ask question answer pdf document talk ai assistant qa', ai: 'both', quiet: true, wide: true,
-    desc: 'Ask questions about a PDF and get focused answers that point to the page.',
+    desc: 'Ask a PDF questions and get answers that point to the page.',
     accept: DOC, drop: 'Drop a document here', note: 'PDF, Word, PowerPoint or text', btn: 'Ask',
     options: () => ENGINE + `<div class="chatlog" id="o-chatlog" aria-live="polite"></div>
       <div class="chat-input"><textarea id="o-q" class="input" rows="2" placeholder="Ask a question about the document"></textarea></div><div id="o-ai"></div>`,
@@ -478,7 +478,7 @@ Object.assign(TOOLS, {
   },
   aitranslate: {
     group: 'ai', name: 'AI document translator', icon: 'translate', keys: 'translate translation language docx pptx pdf txt convert localize ai', ai: 'both',
-    desc: 'Translate PDF, Word, PowerPoint and text files, keeping the layout readable. Word and PowerPoint keep their formatting.',
+    desc: 'Translate PDF, Word, PowerPoint and text files. Word and PowerPoint keep their formatting.',
     accept: `${PDF},.docx,.pptx,.txt,.md`, drop: 'Drop a document here', note: 'PDF, DOCX, PPTX or TXT', btn: 'Translate',
     options: () => ENGINE + row(sel('o-lang', 'Translate into', LANGS.map(l => [l, l])), inp('o-lang2', 'Or another language', 'placeholder="e.g. Swahili"')) +
       hint('Word and PowerPoint files keep their layout, styles and pictures. PDFs come back as an editable Word file with the text translated.') + '<div id="o-ai"></div>',
@@ -537,7 +537,7 @@ Object.assign(TOOLS, {
   },
   aiquiz: {
     group: 'ai', name: 'AI quiz generator', icon: 'quiz', keys: 'quiz test questions exam study flashcards learn multiple choice ai', ai: 'both',
-    desc: 'Turn a PDF into an interactive quiz with answers and explanations, then export it as PDF or CSV.',
+    desc: 'Turn a document into a quiz with answers and explanations, then export it as PDF or CSV.',
     accept: DOC, drop: 'Drop a document here', note: 'PDF, Word, PowerPoint or text', btn: 'Generate quiz',
     options: () => ENGINE + row(sel('o-count', 'Questions', [['10', '10'], ['5', '5'], ['15', '15'], ['20', '20']]), sel('o-diff', 'Difficulty', [['medium', 'Medium'], ['easy', 'Easy'], ['hard', 'Hard']]), sel('o-kinds', 'Type', [['mcq', 'Multiple choice'], ['mixed', 'Mixed with true/false']])) + '<div id="o-ai"></div>',
     afterOptions: () => refreshEngine(),
