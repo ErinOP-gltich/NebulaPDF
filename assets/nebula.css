@@ -514,30 +514,7 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(4px); }
 .dropveil.on { opacity: 1; }
 .dropveil p { margin: 0; font: 400 clamp(3rem, 9vw, 7rem)/1 var(--f-display); letter-spacing: -.02em; color: #fff; text-shadow: 0 2px 20px rgb(0 0 0 / .5); }
 
-/* ---------- custom cursor (mouse only) ---------- */
-.cursor { position: fixed; left: 0; top: 0; z-index: 200; pointer-events: none; display: none; --c: #fff; --c2: #0b0b10; transition: opacity var(--d-s); }
-.cursor.on-light { --c: #0b0b10; --c2: #fff; } /* app.js reads the colour under the pointer and sets this on light backgrounds */
-.has-cursor .cursor { display: block; }
-.cursor-dot, .cursor-ring { position: absolute; left: 0; top: 0; border-radius: 50%; will-change: transform; }
-.cursor-dot { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: var(--c); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c2) 45%, transparent);
-  transition: opacity var(--d-s), background var(--d-m), box-shadow var(--d-m), transform 60ms linear; }
-.cursor-ring {
-  width: 36px; height: 36px; margin: -18px 0 0 -18px; display: grid; place-items: center;
-  border: 1.5px solid color-mix(in srgb, var(--c) 90%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c2) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--c2) 22%, transparent);
-  transition: width var(--d-m) var(--ease-out), height var(--d-m) var(--ease-out), margin var(--d-m) var(--ease-out), background var(--d-m), border-color var(--d-m), box-shadow var(--d-m), opacity var(--d-s);
-}
-.cursor-label { font: 600 .72rem/1 var(--f-body); color: var(--c2); opacity: 0; transition: opacity var(--d-s), color var(--d-m); white-space: nowrap; }
-.cursor[data-state="hover"] .cursor-ring { width: 58px; height: 58px; margin: -29px 0 0 -29px; background: color-mix(in srgb, var(--c) 12%, transparent); border-color: color-mix(in srgb, var(--c) 60%, transparent); }
-.cursor[data-state="hover"] .cursor-dot { opacity: 0; }
-.cursor[data-state="drop"] .cursor-ring, .cursor[data-state="remove"] .cursor-ring { width: 76px; height: 76px; margin: -38px 0 0 -38px; background: var(--c); border-color: var(--c); }
-.cursor[data-state="drop"] .cursor-label, .cursor[data-state="remove"] .cursor-label { opacity: 1; }
-.cursor[data-state="drop"] .cursor-dot, .cursor[data-state="remove"] .cursor-dot { opacity: 0; }
-.cursor[data-state="cross"] .cursor-ring { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; }
-.cursor[data-state="text"] { opacity: 0; }
-.cursor.down .cursor-ring { width: 26px; height: 26px; margin: -13px 0 0 -13px; }
-.cursor.gone, html:has(dialog[open]) .cursor { opacity: 0; } /* open dialogs sit in the top layer, above any z-index: they get the normal cursor */
-.has-cursor:not(:has(dialog[open])), .has-cursor:not(:has(dialog[open])) *:not(input):not(textarea):not(select):not([contenteditable]) { cursor: none !important; }
-.has-cursor:not(:has(dialog[open])) :is(input[type=range], input[type=checkbox]) { cursor: none !important; }
+[data-cursor=cross] { cursor: crosshair; }
 
 /* reveal on scroll */
 .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 1.2s var(--ease-out), transform 1.2s var(--ease-out); transition-delay: calc(var(--d, 0) * 60ms); }

@@ -95,7 +95,7 @@ Named after long-exposure space photographs. Dark by default with a light theme 
 * **Hero:** a canvas night sky. Stars bend around the pointer like light around a mass, pages orbit the drop well and spiral into it while a file is dragged over the window, and the headline's letters lean and warm as the pointer passes.
 * **Blueprint frame** (inspired by getartcraft.com): hairline rails at the content edges, ruled section bars ("01 / The tools") with crosshair marks, a full-width ruled nav with an inverted active item, a scroll ruler with a percentage and a section index on wide screens, and thin coloured orbit arcs in the hero.
 * **Tool cards:** hairline cells, each with a numbered badge in its group's colour, the group name, format tags (PDF → DOCX, Batch, OCR) and an "Open tool" row; the four most used tools have larger cells with an illustration panel. Squared buttons and chips with small uppercase monospace labels.
-* **Surfaces:** a light that follows the pointer over the cards, small tight shadows, ripples on buttons, and a custom cursor (a dot plus a trailing ring that grows over controls, shows "Open"/"Drop" over drop zones and becomes a crosshair over pages you draw on).
+* **Surfaces:** a light that follows the pointer over the cards, small tight shadows and ripples on buttons. The normal system cursor is used, with a crosshair over pages you draw on.
 * **Motion** switches off with the system's reduce-motion setting, or with **Pause motion** in the footer.
 
 ## 🛠️ Press Components
@@ -107,7 +107,7 @@ Plain HTML, CSS and JavaScript, no build step:
 | `index.html` | The home page: the tools |
 | `privacy.html`, `about.html` | The Privacy and About pages, served at `/privacy` and `/about` (`cleanUrls` in `vercel.json`) |
 | `assets/nebula.css` | Design tokens (both themes) and every component |
-| `assets/shell.js` | Shared by every page: theme, motion switch, cursor, button ripples, scroll reveals |
+| `assets/shell.js` | Shared by every page: theme, motion switch, button ripples, scroll reveals |
 | `assets/app.js` | Home page: hero sky, tool grid, search, file routing and the tool screen |
 | `assets/engine.js` | Library loading, PDF helpers, layout analysis, the Word/Excel writers and the 25 PDF tools |
 | `assets/tools-image.js` | PDF metadata tools and the image tools |

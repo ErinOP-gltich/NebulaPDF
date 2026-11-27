@@ -1,5 +1,5 @@
 /* Nebula home page: the night-sky hero, tool grid and search, file routing and the tool screen.
-   Theme, cursor and motion are in shell.js; tools themselves live in engine.js. */
+   Theme and motion are in shell.js; tools themselves live in engine.js. */
 let currentTool = null, uploadedFiles = [], lastFile = null, processed = 0;
 const views = { dashboard: $('dashboard-view'), workspace: $('workspace-view') };
 
