@@ -39,7 +39,7 @@ The AI tools run an open-source model on your device too. Each one has an option
 
 **Fill in a form:** fills a PDF's text fields, checkboxes, dropdowns, lists and radio buttons, and can flatten the answers into the page.
 
-**Works offline:** a service worker (`sw.js`) keeps the site and every tool library on the device after first use; "Save tools for offline use" (in the Privacy section) fetches them all at once. Text recognition works offline once it has been used online for that language. The app can be installed (`manifest.webmanifest`), and the installed app can open PDFs from your files.
+**Works offline:** a service worker (`sw.js`) keeps the site and every tool library on the device after first use; "Save tools for offline use" (in the footer of the home page) fetches them all at once. Text recognition works offline once it has been used online for that language. The app can be installed (`manifest.webmanifest`), and the installed app can open PDFs from your files.
 
 **Downloads:** browsers only let a page start a download by itself for a few seconds after your last click. When a job takes longer (PDF to PowerPoint on a long PDF, a big batch), Nebula doesn't try and get silently blocked: the result panel's Download button asks for that one click.
 
@@ -104,9 +104,11 @@ Plain HTML, CSS and JavaScript, no build step:
 
 | File | What's in it |
 |---|---|
-| `index.html` | The page |
+| `index.html` | The home page: the tools |
+| `privacy.html`, `about.html` | The Privacy and About pages, served at `/privacy` and `/about` (`cleanUrls` in `vercel.json`) |
 | `assets/nebula.css` | Design tokens (both themes) and every component |
-| `assets/app.js` | Theme, cursor, hero sky, tool grid, search, file routing and the tool screen |
+| `assets/shell.js` | Shared by every page: theme, motion switch, cursor, button ripples, scroll reveals |
+| `assets/app.js` | Home page: hero sky, tool grid, search, file routing and the tool screen |
 | `assets/engine.js` | Library loading, PDF helpers, layout analysis, the Word/Excel writers and the 25 PDF tools |
 | `assets/tools-image.js` | PDF metadata tools and the image tools |
 | `assets/tools-ai.js` | The AI tools and the on-device / Claude switch |
@@ -153,7 +155,7 @@ python3 -m http.server 8000
 
 ## 🚢 Deploying
 
-The live site is deployed from the `main` branch of this repository. When you change a file in `assets/`, bump the `?v=` number on its link in `index.html` in the same commit, so visitors' browsers load the new version instead of a cached one.
+The live site is deployed from the `main` branch of this repository. When you change a file in `assets/`, bump the `?v=` number on its links in `index.html`, `privacy.html` and `about.html` in the same commit (these files are cached for a year), so visitors' browsers load the new version instead of a cached one.
 
 ## 🤝 Contributing
 

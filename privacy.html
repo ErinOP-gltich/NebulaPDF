@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy · Nebula</title>
+<meta name="description" content="How Nebula keeps your files private: every tool runs in your browser, so your documents are never uploaded.">
+<meta name="theme-color" content="#05060A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/app-icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nebula">
+<script>
+  // Theme and motion before first paint, so the page never flashes the wrong theme.
+  (function () {
+    var r = document.documentElement, t, c;
+    try { t = localStorage.getItem('nebula-theme'); c = localStorage.getItem('nebula-calm'); } catch (e) {}
+    r.dataset.theme = t || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    r.classList.add('js');
+    if (c === '1') r.classList.add('calm');
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wdth,wght@75..100,400..700&family=Geist+Mono:wght@400..600&family=Anybody:wdth,wght@130,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/nebula.css?v=40">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF5A6E'/%3E%3Cstop offset='.5' stop-color='%23FFB547'/%3E%3Cstop offset='1' stop-color='%232FE0D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%2305060A'/%3E%3Cellipse cx='16' cy='16' rx='12.5' ry='5' fill='none' stroke='url(%23g)' stroke-width='2.2' transform='rotate(-28 16 16)'/%3E%3Cpath d='M12 8.5h6l3.5 3.5v11.5H12z' fill='%23EEF0F7'/%3E%3C/svg%3E">
+</head>
+<body class="doc-page">
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <a class="brand" href="/" aria-label="Nebula home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5A6E"/><stop offset=".5" stop-color="#FFB547"/><stop offset="1" stop-color="#2FE0D0"/></linearGradient></defs>
+        <path d="M11 7h7.2l4 4V25H11z" fill="currentColor"/><path d="M18 7v4.4h4.2" fill="none" stroke="var(--bg)" stroke-width="1.4"/>
+        <ellipse cx="16" cy="16" rx="14" ry="5.4" fill="none" stroke="url(#bm)" stroke-width="2.2" transform="rotate(-28 16 16)"/>
+      </svg>
+      Nebula
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a class="nav-link" href="/#tools">Tools</a>
+      <a class="nav-link active" href="/privacy" aria-current="page">Privacy</a>
+      <a class="nav-link" href="/about">About</a>
+    </nav>
+    <button class="icon-btn theme-btn" id="theme-btn" aria-label="Switch between dark and light">
+      <span data-icon="sun" class="ic-sun"></span><span data-icon="moon" class="ic-moon"></span>
+    </button>
+    <a class="nav-cta" href="/#tools"><span data-icon="layout-grid"></span><span>All tools</span></a>
+  </header>
+
+  <main id="main" class="page">
+    <section class="section page-head">
+      <div class="wrap"><div class="secbar"><a class="back label" href="/"><span data-icon="arrow-left"></span>All tools</a><span class="label">Privacy</span></div></div>
+      <div class="wrap">
+        <h1 class="page-title reveal">Your files never leave this tab.</h1>
+        <p class="page-lede reveal" style="--d:1">Most online PDF tools upload your document to their server, work on it there and send it back. Nebula does the opposite: your browser downloads the tool code, and the work happens on your device.</p>
+      </div>
+    </section>
+    <section class="section page-body">
+      <div class="wrap">
+        <div class="facts">
+          <article class="fact reveal" style="--d:0"><span data-icon="shield-check"></span><div><h2>Your files stay with you</h2><p>Your browser opens, edits and saves every file itself. Nothing about your documents is sent anywhere, and closing the tab clears them from memory.</p></div></article>
+          <article class="fact reveal" style="--d:1"><span data-icon="download"></span><div><h2>What your browser downloads</h2><p>Nebula’s own code comes from this site. When a tool needs it, an open-source library loads from a public code host (cdnjs, jsDelivr or unpkg), fonts come from Google Fonts, and AI models from Hugging Face. Like any website, those services see your IP address and what they sent you, never your files.</p></div></article>
+          <article class="fact reveal" style="--d:2"><span data-icon="ai"></span><div><h2>AI tools</h2><p>They run an open-source model on your device by default. A Claude option for sharper answers is coming soon. It will always be your choice: only then is a document’s text sent, to Anthropic, and Nebula itself won’t keep it.</p></div></article>
+          <article class="fact reveal" style="--d:3"><span data-icon="eye-off"></span><div><h2>No account, no tracking</h2><p>There’s no sign-up, no advertising and no analytics. Like any website, the host (Vercel) keeps standard server logs of page requests.</p></div></article>
+          <article class="fact reveal" style="--d:4"><span data-icon="stack"></span><div><h2>Saved on your device</h2><p>Your theme, motion setting and AI choice are remembered in your browser. If you save the tools for offline use, their code is kept in your browser’s cache. Clearing this site’s data removes all of it.</p></div></article>
+          <article class="fact reveal" style="--d:5"><span data-icon="search"></span><div><h2>Check it yourself</h2><p>Open your browser’s developer tools, watch the Network tab while you use a tool, and you’ll see no uploads. The code is open source on <a href="https://github.com/ErinOP-gltich/NebulaPDF" target="_blank" rel="noopener">GitHub</a>.</p></div></article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="foot-word" aria-hidden="true">Nebula</span>
+      <div class="foot-row">
+        <p>Runs in your browser. Nothing is uploaded unless you choose Claude for an AI tool. Made by Aman, open source under the MIT license.</p>
+        <nav class="foot-links" aria-label="More"><a href="/privacy" aria-current="page">Privacy</a><a href="/about">About</a><a href="https://github.com/ErinOP-gltich/NebulaPDF" target="_blank" rel="noopener">GitHub</a></nav>
+        <label class="switch"><input type="checkbox" id="calm-toggle"><span class="switch-track"><span class="switch-thumb"></span></span><span>Pause motion</span></label>
+      </div>
+    </div>
+  </footer>
+
+  <div class="rails" aria-hidden="true"></div>
+  <div class="cursor gone" id="cursor" aria-hidden="true"><div class="cursor-ring"><span class="cursor-label" id="cursor-label"></span></div><div class="cursor-dot"></div></div>
+
+  <script src="assets/icons.js?v=40"></script>
+  <script src="assets/shell.js?v=40"></script>
+</body>
+</html>
