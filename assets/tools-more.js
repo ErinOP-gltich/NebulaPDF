@@ -326,3 +326,59 @@ Object.assign(TOOLS.protect, {
   },
 });
 TOOLS.unlock.desc = 'Take the password, or the limits on printing and copying, off a PDF, as long as you know the password.';
+
+/* ---------- Sign: draw, type or upload a signature. Every mode paints the same #pad canvas, so placing and saving stay as they were ---------- */
+const SIG_FONTS = [['Caveat', 'Casual'], ['Dancing Script', 'Flowing'], ['Great Vibes', 'Formal'], ['Homemade Apple', 'Handwritten']];
+let sigFontsLoad;
+const sigFonts = () => sigFontsLoad ??= new Promise(ok => document.head.append(Object.assign(document.createElement('link'), {
+  rel: 'stylesheet', onload: ok, onerror: ok, // offline it falls back to the browser's cursive font
+  href: 'https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Dancing+Script:wght@600&family=Great+Vibes&family=Homemade+Apple&display=swap' })));
+const sigInk = () => getComputedStyle(document.documentElement).getPropertyValue('--sig-ink').trim() || '#1a2a6c';
+let sigGen = 0;
+async function sigType() {
+  const gen = ++sigGen, text = val('o-sigtext').trim(), font = val('o-sigfont');
+  await sigFonts();
+  await document.fonts.load(`100px "${font}"`, text || 'a').catch(() => {});
+  if (gen !== sigGen || segValue('o-sigmode') !== 'type') return; // a newer keystroke paints instead
+  const c = $('pad'), ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (!text) return;
+  ctx.font = `150px "${font}", cursive`;
+  const size = 150 * Math.min(1, c.width * .9 / ctx.measureText(text).width);
+  Object.assign(ctx, { font: `${size}px "${font}", cursive`, fillStyle: sigInk(), textAlign: 'center', textBaseline: 'middle' });
+  ctx.fillText(text, c.width / 2, c.height / 2);
+}
+// A photo or scan of a signature on paper: the paper turns clear, the ink stays.
+async function sigUpload(file) {
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) return showToast(`${file.name} isn't an image this browser can open.`, true);
+  const c = $('pad'), ctx = c.getContext('2d'), k = Math.min(c.width * .95 / bmp.width, c.height * .9 / bmp.height);
+  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k), x = (c.width - w) >> 1, y = (c.height - h) >> 1;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, x, y, w, h);
+  const img = ctx.getImageData(x, y, w, h), p = img.data, lum = i => p[i] * .3 + p[i + 1] * .59 + p[i + 2] * .11;
+  let paper = 0, n = 0;
+  for (let i = 0; i < p.length; i += 4) if (p[i + 3]) { paper += lum(i); n++; } // ink is a small share, so the mean is about the paper
+  paper = n ? paper / n : 255;
+  for (let i = 0; i < p.length; i += 4) p[i + 3] = Math.round(p[i + 3] * Math.min(1, Math.max(0, (paper - 30 - lum(i)) / 50)));
+  ctx.putImageData(img, x, y);
+}
+const SIGN0 = { options: TOOLS.sign.options, ready: TOOLS.sign.ready };
+Object.assign(TOOLS.sign, {
+  desc: 'Draw, type or upload your signature and place it anywhere on the page.',
+  keys: `${TOOLS.sign.keys} type name upload photo scan`,
+  options: () => `<div class="seg" role="group" aria-label="How to sign" id="o-sigmode">
+      <button type="button" class="seg-btn" data-k="draw" aria-pressed="true" onclick="segPick(this)">${icon('signature')}Draw</button>
+      <button type="button" class="seg-btn" data-k="type" aria-pressed="false" onclick="segPick(this)">${icon('type')}Type</button>
+      <button type="button" class="seg-btn" data-k="upload" aria-pressed="false" onclick="segPick(this)">${icon('img')}Upload</button></div>
+    <div id="o-sigmode-type" class="options-sub hidden">${row(inp('o-sigtext', 'Your name', 'autocomplete="name" placeholder="Jane Doe"'), sel('o-sigfont', 'Style', SIG_FONTS))}</div>
+    <div id="o-sigmode-upload" class="options-sub hidden"><label class="field"><span class="field-label">Photo or scan of your signature on white paper</span><input id="o-sigfile" type="file" accept="image/*" class="input file-pick"></label></div>
+    ${SIGN0.options().replace('Draw your signature', 'Your signature')}`,
+  async ready(files) {
+    await SIGN0.ready(files);
+    const clear = () => $('pad').getContext('2d').clearRect(0, 0, 900, 260);
+    $('o-sigmode').addEventListener('pick', e => { clear(); if (e.detail === 'type') { sigType(); $('o-sigtext').focus(); } if (e.detail === 'upload' && $('o-sigfile').files[0]) sigUpload($('o-sigfile').files[0]); });
+    $('o-sigtext').oninput = $('o-sigfont').onchange = sigType;
+    $('o-sigfile').onchange = e => e.target.files[0] && sigUpload(e.target.files[0]);
+  },
+});

@@ -739,7 +739,7 @@ function segPick(btn) {
   const group = btn.closest('.seg');
   group.querySelectorAll('[data-k]').forEach(b => {
     b.setAttribute('aria-pressed', b === btn);
-    const panel = $(`${group.id}-${b.dataset.k}`) || (group.id === 'o-wkind' && $(b.dataset.k === 'text' ? 'o-wtext' : 'o-wlogo'));
+    const panel = $(`${group.id}-${b.dataset.k}`) || (group.id === 'o-wkind' ? $(b.dataset.k === 'text' ? 'o-wtext' : 'o-wlogo') : null);
     panel?.classList.toggle('hidden', b !== btn);
   });
   group.dispatchEvent(new CustomEvent('pick', { detail: btn.dataset.k }));
