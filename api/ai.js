@@ -190,6 +190,7 @@ function friendly(err) {
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
+  if (req.method === 'GET') { res.setHeader('Cache-Control', 'public, s-maxage=300'); } // the edge answers "is Claude set up?" for 5 minutes
   if (req.method === 'GET') return res.status(200).json({ ready: !!(process.env.ANTHROPIC_API_KEY || globalThis.__nebulaClaude), model: MODEL });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST.' });
   if (!allowedOrigin(req.headers.origin)) return res.status(403).json({ error: 'This endpoint only serves the Nebula site.' });

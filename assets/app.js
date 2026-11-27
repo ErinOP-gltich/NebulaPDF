@@ -58,10 +58,10 @@ if (finePointer) {
     }
     return root.dataset.theme === 'light';
   };
-  addEventListener('scroll', () => { toneDue = true; }, { passive: true });
+  addEventListener('scroll', () => { toneDue = true; wake(); }, { passive: true });
   addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse') return;
-    x = e.clientX; y = e.clientY; toneDue = true;
+    x = e.clientX; y = e.clientY; toneDue = true; wake();
     if (!seen) { rx = x; ry = y; seen = true; }
     cur.classList.remove('gone');
     dot.style.transform = `translate(${x}px, ${y}px)`;
@@ -81,14 +81,17 @@ if (finePointer) {
   addEventListener('pointerdown', () => cur.classList.add('down'));
   addEventListener('pointerup', () => cur.classList.remove('down'));
   root.addEventListener('mouseleave', () => cur.classList.add('gone'));
-  (function trail() {
+  let awake = false;
+  const wake = () => { if (!awake) { awake = true; requestAnimationFrame(trail); } };
+  function trail() {
     const k = calm() ? 1 : .2;
     rx += (x - rx) * k; ry += (y - ry) * k;
     ring.style.transform = `translate(${rx}px, ${ry}px)`;
     const now = performance.now();
     if (toneDue && now - toneAt > 60) { toneDue = false; toneAt = now; cur.classList.toggle('on-light', lightUnder()); }
-    requestAnimationFrame(trail);
-  })();
+    if (toneDue || Math.abs(x - rx) + Math.abs(y - ry) > .3) requestAnimationFrame(trail);
+    else awake = false;
+  }
 }
 
 /* ---------- ripple on buttons ---------- */
@@ -139,10 +142,11 @@ const sky = (() => {
       }
       return c;
     });
-    stars = Array.from({ length: Math.round(Math.min(1200, W * H / 1300)) }, () => ({
+    const lite = W < 700 || matchMedia('(pointer: coarse)').matches;
+    stars = Array.from({ length: Math.round(Math.min(lite ? 320 : 900, W * H / (lite ? 2200 : 1500))) }, () => ({
       x: Math.random() * W, y: Math.random() * H, z: Math.random() ** 2 * .9 + .1, p: Math.random() * 6.28,
-      c: Math.random() < .14 ? (Math.random() < .5 ? '255,205,150' : '160,240,232') : '236,240,255',
-    }));
+      c: Math.random() < .14 ? (Math.random() < .5 ? 'rgb(255,205,150)' : 'rgb(160,240,232)') : 'rgb(236,240,255)',
+    })).sort((a, b) => a.c < b.c ? -1 : 1);
     const span = Math.min(W, H);
     pages = Array.from({ length: W < 700 ? 7 : 12 }, () => ({
       a: Math.random() * 6.28, r: span * (.22 + Math.random() * .5), s: (Math.random() * .5 + .5) * (Math.random() < .5 ? -1 : 1),
@@ -186,6 +190,7 @@ const sky = (() => {
       ctx.fillStyle = `rgba(${col},.95)`; ctx.beginPath(); ctx.arc(ex, ey, 2.4, 0, 7); ctx.fill();
     });
     ctx.globalCompositeOperation = 'lighter';
+    let col = '';
     for (const s of stars) {
       let x = s.x - px * 40 * s.z, y = s.y - py * 26 * s.z;
       if (pull > .01) { // accretion: everything swirls toward the well
@@ -197,9 +202,11 @@ const sky = (() => {
         if (d < 260) { const push = Math.min(70, 3600 / d) * (1 - d / 260); x += dx / d * push; y += dy / d * push; }
       }
       const tw = .55 + .45 * Math.sin(t * 1.7 + s.p), sz = s.z * 1.7 + .35;
-      ctx.fillStyle = `rgba(${s.c},${(.22 + s.z * .78) * tw})`;
+      if (s.c !== col) ctx.fillStyle = col = s.c;
+      ctx.globalAlpha = (.22 + s.z * .78) * tw;
       ctx.fillRect(x, y, sz, sz);
     }
+    ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     for (const p of pages) {
       p.a += p.s * .0018 * (1 + pull * 7); p.rot += p.vr * .01 * (1 + pull * 4);
@@ -216,9 +223,10 @@ const sky = (() => {
       if (comet.life <= 0) comet = null;
     }
   }
+  let last = 0;
   function loop(now) {
     if (!running) return;
-    draw(now);
+    if (now - last > 15) { last = now; draw(now); }
     requestAnimationFrame(loop);
   }
   function sync() {
@@ -303,7 +311,7 @@ const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(
   <span class="cell-top"><span class="num">${n}</span><span class="label">${groupName(t.group)}</span></span>
   ${big ? '' : `<span class="card-icon">${icon(t.icon)}</span>`}
   <span class="card-text"><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span>
-  <span class="tags">${tagsOf(id).map(x => `<span class="tag">${x}</span>`).join('')}${t.ai === 'both' ? '<span class="tag soon-tag">Claude: coming soon</span>' : ''}</span>
+  <span class="tags">${tagsOf(id).map(x => `<span class="tag">${x}</span>`).join('')}${t.ai === 'both' ? '<span class="tag soon-tag">Coming soon</span>' : ''}</span>
   <span class="cell-foot label">Open tool${icon('open')}</span></button>`; };
 const ids = Object.keys(TOOLS);
 $('tools-count').textContent = `${ids.length} tools, ${GROUPS.length} groups`;
@@ -731,13 +739,16 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   navigator.serviceWorker.register('sw.js').catch(() => {});
   // keep this page's own files too, so the version you're using works offline
   const files = ['./', ...[...document.querySelectorAll('script[src^="assets/"], link[href^="assets/"]')].map(e => e.getAttribute('src') || e.getAttribute('href'))];
-  caches.open('nebula-shell').then(async c => {
-    await c.addAll(files);
+  // only fetch what isn't saved yet (versioned files never change), once the page has settled
+  const keep = () => caches.open('nebula-shell').then(async c => {
+    const missing = (await Promise.all(files.map(async f => (f === './' || !(await c.match(f))) && f))).filter(Boolean);
+    await c.addAll(missing);
     for (const r of await c.keys()) { // drop the copies of older versions
       const u = new URL(r.url);
       if (u.pathname.includes('/assets/') && u.search && !files.some(f => r.url.endsWith(f))) c.delete(r);
     }
   }).catch(() => {});
+  (window.requestIdleCallback || setTimeout)(keep, { timeout: 4000 });
 }
 offlineStatus();
 $('offline-btn').onclick = async () => {
@@ -780,14 +791,14 @@ if ('launchQueue' in window) launchQueue.setConsumer(async p => { const files = 
   let queued = false;
   const tick = () => {
     queued = false;
-    const max = root.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, scrollY / max) : 0;
-    $('ruler-mark').style.top = `${p * 100}%`;
-    $('ruler-pct').textContent = `${Math.round(p * 100)}%`;
-    const hero = secs[0][1];
-    hero.style.setProperty('--hp', calm() ? 0 : Math.min(1, Math.max(0, scrollY / (hero.offsetHeight || 1))).toFixed(3));
+    const max = root.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, scrollY / max) : 0, hero = secs[0][1];
+    const hp = calm() ? '0' : Math.min(1, Math.max(0, scrollY / (hero.offsetHeight || 1))).toFixed(3);
     let cur = 'top';
     for (const [k, el] of secs) if (el.getBoundingClientRect().top < innerHeight * .4) cur = k;
     if (root.classList.contains('on-tool')) cur = '';
+    $('ruler-mark').style.top = `${p * 100}%`;
+    $('ruler-pct').textContent = `${Math.round(p * 100)}%`;
+    if (hero.style.getPropertyValue('--hp') !== hp) hero.style.setProperty('--hp', hp);
     document.querySelectorAll('[data-spy]').forEach(a => a.classList.toggle('active', a.dataset.spy === cur));
   };
   addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(tick); } }, { passive: true });

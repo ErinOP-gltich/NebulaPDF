@@ -1,5 +1,33 @@
 {
   "functions": {
-    "api/ai.js": { "maxDuration": 300 }
-  }
+    "api/ai.js": {
+      "maxDuration": 300
+    }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "has": [
+        {
+          "type": "query",
+          "key": "v"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/app-icons/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    }
+  ]
 }

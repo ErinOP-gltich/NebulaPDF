@@ -1,5 +1,6 @@
 /* Nebula service worker: keeps the site and its tool libraries on the device, so it works offline.
-   - The site's own files: fetched fresh when online (so new versions load at once), the saved copy when offline.
+   - The site's own files: versioned ones (?v=) come from the saved copy; the page itself is fetched fresh when
+     online (so a new version loads at once, with new ?v= numbers), the saved copy when offline.
    - Libraries, fonts and OCR data from CDNs: their URLs carry a version and never change, so they're served from
      the saved copy and only downloaded the first time. */
 const SHELL = 'nebula-shell';
@@ -27,6 +28,8 @@ self.addEventListener('fetch', e => {
   if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return; // the AI endpoint is never cached
   e.respondWith((async () => {
     const cache = await caches.open(SHELL);
+    // files with ?v= in the URL never change: the saved copy is served at once
+    if (url.searchParams.has('v')) { const hit = await cache.match(req); if (hit) return hit; }
     try {
       // always check with the server (never the browser's HTTP cache), so a new deploy is picked up at once
       const res = await fetch(req, { cache: 'no-cache' });
