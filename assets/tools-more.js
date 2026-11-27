@@ -1,5 +1,4 @@
-/* Nebula: more PDF tools. Flatten, remove annotations, header & footer, bookmarks and a contents page, find & redact,
-   compare, PowerPoint to PDF, plus Workflow (run tools one after another) and Studio (one workspace for a PDF).
+/* Nebula: more PDF tools. Flatten, remove annotations, find & redact, compare, PowerPoint to PDF, plus Workflow (run tools one after another) and Studio (one workspace for a PDF).
    Also extends Merge (any file type), Sign (type or upload a signature) and Protect (permissions).
    Loaded after engine.js and before app.js; adds to its TOOLS. Everything runs on the device. */
 
@@ -50,7 +49,7 @@ function dropAnnots(doc, keep) { // keep(type) -> true to keep; returns how many
   return removed;
 }
 
-/* ---------- text on a page, as lines with character positions (find & redact, bookmarks, compare) ---------- */
+/* ---------- text on a page, as lines with character positions (find & redact, compare) ---------- */
 async function pageLines(view, n) {
   const page = await view.getPage(n), vp = page.getViewport({ scale: 1 }), tc = await page.getTextContent();
   const lines = [];
@@ -183,61 +182,6 @@ Object.assign(TOOLS, {
       return `Removed ${plural(removed, 'annotation')}`;
     },
   },
-  headerfooter: {
-    group: 'edit', name: 'Header & footer', icon: 'text-aa', keys: 'header footer running title date page number letterhead',
-    desc: 'Add a line of text to the top and bottom of every page, with page numbers, the date or the file name.',
-    accept: PDF, btn: 'Add header & footer', libs: ['pdflib'], batch: true,
-    options: () => row(inp('o-head', 'Header', 'placeholder="e.g. {file}"'), sel('o-halign', 'Header position', [['center', 'Centre'], ['left', 'Left'], ['right', 'Right']])) +
-      row(inp('o-foot', 'Footer', 'value="Page {page} of {pages}"'), sel('o-falign', 'Footer position', [['center', 'Centre'], ['left', 'Left'], ['right', 'Right']])) +
-      row(sel('o-hsize', 'Text size', [['10', '10 pt'], ['8', '8 pt'], ['9', '9 pt'], ['11', '11 pt'], ['12', '12 pt']]), sel('o-hcolor', 'Colour', [['grey', 'Grey'], ['black', 'Black'], ['blue', 'Blue']]),
-        sel('o-hskip', 'Pages', [['0', 'Every page'], ['1', 'All but the first']])) +
-      hint('Use {page}, {pages}, {date} and {file} anywhere in the text.'),
-    async run([f]) {
-      const head = val('o-head').trim(), foot = val('o-foot').trim();
-      if (!head && !foot) throw new UserError('Type a header or a footer first.');
-      const doc = await openPdf(f), font = await doc.embedFont(PDFLib.StandardFonts.Helvetica), pages = doc.getPages();
-      const size = +val('o-hsize'), color = PDFLib.rgb(...COLORS[val('o-hcolor')]), skip = +val('o-hskip'), date = new Date().toLocaleDateString(), m = 26;
-      const fill = (t, k) => t.replace(/\{page\}/g, k + 1).replace(/\{pages\}/g, pages.length).replace(/\{date\}/g, date).replace(/\{file\}/g, stem(f));
-      pages.forEach((p, k) => {
-        if (k < skip) return;
-        const fr = frame(p);
-        for (const [text, align, top] of [[head, val('o-halign'), true], [foot, val('o-falign'), false]]) {
-          if (!text) continue;
-          const t = fill(text, k), tw = font.widthOfTextAtSize(t, size);
-          drawLabel(p, t, align === 'left' ? m : align === 'right' ? fr.w - m - tw : (fr.w - tw) / 2, top ? m + size * .7 : fr.h - m + size * .2, { font, size, color });
-        }
-      });
-      save(await doc.save(), `${stem(f)}-header-footer.pdf`);
-      return 'Header and footer added';
-    },
-  },
-  bookmarks: {
-    group: 'edit', name: 'Bookmarks & contents', icon: 'list-ordered', keys: 'bookmarks outline table of contents toc navigation chapters headings index',
-    desc: 'Add clickable bookmarks for each heading, found for you or typed in, and an optional contents page.',
-    accept: PDF, btn: 'Save with bookmarks', libs: ['pdflib', 'pdfjs'], batch: true,
-    options: () => `<label class="field"><span class="field-label">Bookmarks: one per line, as Title | page. Indent with two spaces for a sub-heading.</span>
-        <textarea id="o-marks" class="input tall" placeholder="Leave empty to find the headings automatically"></textarea></label>
-      <div class="row"><button type="button" class="chip" id="o-detect">${icon('sparkles')}Find headings</button><button type="button" class="chip" id="o-existing">${icon('list-ordered')}Load existing bookmarks</button></div>
-      ${check('o-toc', 'Add a contents page at the start', false)}`,
-    async ready([f]) {
-      $('o-detect').onclick = async () => { $('o-marks').value = 'Looking for headings…'; $('o-marks').value = marksText(await detectHeadings(await openView(f))) || ''; if (!$('o-marks').value) showToast('No clear headings found. Type the bookmarks instead.', true); };
-      $('o-existing').onclick = async () => { const m = await existingOutline(await openView(f)); $('o-marks').value = marksText(m); if (!m.length) showToast('This PDF has no bookmarks yet.', true); };
-      const m = await existingOutline(await openView(f));
-      if (m.length && !$('o-marks').value) $('o-marks').value = marksText(m);
-    },
-    async run([f]) {
-      const view = await openView(f), doc = await openPdf(f), n = doc.getPageCount();
-      let marks = parseMarks(val('o-marks'), n);
-      if (!marks.length) marks = await detectHeadings(view);
-      if (!marks.length) throw new UserError('No headings were found. Type the bookmarks, one per line, as Title | page.');
-      let shift = 0;
-      if ($('o-toc').checked) shift = await addContentsPage(doc, marks);
-      const pages = doc.getPages();
-      writeOutline(doc, marks.map(m => ({ ...m, ref: pages[m.page - 1 + shift].ref })));
-      save(await doc.save(), `${stem(f)}-bookmarked.pdf`);
-      return `Added ${plural(marks.length, 'bookmark')}${shift ? ' and a contents page' : ''}`;
-    },
-  },
   findredact: {
     group: 'security', name: 'Find & redact', icon: 'search', keys: 'redact search find black out hide email phone sensitive personal data gdpr censor',
     desc: 'Search for words, names, emails or phone numbers and black out every match for good.',
@@ -359,101 +303,6 @@ function markChanges(ca, cb) {
     g.strokeRect(x0 * B - 3, y0 * B - 3, (x1 - x0 + 1) * B + 6, (y1 - y0 + 1) * B + 6);
   }
   return diff / (w * h) + (ca.width !== cb.width || ca.height !== cb.height ? .01 : 0);
-}
-
-/* ---------- bookmarks ---------- */
-const marksText = marks => marks.map(m => `${'  '.repeat(m.level)}${m.title} | ${m.page}`).join('\n');
-function parseMarks(text, n) {
-  return text.split('\n').filter(l => l.trim()).map(l => {
-    const m = l.match(/^(\s*)(.*?)\s*\|\s*(\d+)\s*$/);
-    if (!m) throw new UserError(`“${l.trim()}” needs a page number, like: Introduction | 3`);
-    if (+m[3] < 1 || +m[3] > n) throw new UserError(`Page ${m[3]} doesn't exist. This PDF has ${plural(n, 'page')}.`);
-    return { title: m[2].trim(), page: +m[3], level: Math.min(4, m[1].replace(/\t/g, '  ').length >> 1) };
-  });
-}
-async function existingOutline(view) {
-  const out = [], walk = async (items, level) => {
-    for (const it of items || []) {
-      let page = null;
-      try {
-        const dest = typeof it.dest === 'string' ? await view.getDestination(it.dest) : it.dest;
-        if (dest?.[0]) page = await view.getPageIndex(dest[0]) + 1;
-      } catch { /* a link to somewhere else */ }
-      if (page) out.push({ title: it.title.trim(), page, level });
-      await walk(it.items, level + 1);
-    }
-  };
-  await walk(await view.getOutline(), 0);
-  return out;
-}
-// Headings: short lines set clearly larger (or bold and larger) than the body text. Up to three levels, by size.
-async function detectHeadings(view) {
-  const found = [], sizes = [];
-  for (let n = 1; n <= view.numPages; n++) {
-    progress?.(`Reading page ${n} of ${view.numPages}`, n / view.numPages);
-    const { lines } = await pageLines(view, n);
-    lines.forEach(l => { sizes.push(...Array(Math.min(40, l.text.length)).fill(Math.round(l.size * 2) / 2)); found.push({ n, l }); });
-  }
-  setLoading?.(false);
-  const body = median(sizes);
-  const heads = found.filter(({ l }) => l.size >= body * 1.22 && l.text.trim().length > 1 && l.text.trim().length < 90 && /\p{L}/u.test(l.text));
-  const levels = [...new Set(heads.map(h => Math.round(h.l.size)))].sort((x, y) => y - x).slice(0, 3);
-  const out = [];
-  for (const { n, l } of heads) {
-    const lv = levels.indexOf(Math.round(l.size));
-    if (lv < 0) continue;
-    const title = l.text.replace(/\s+/g, ' ').trim(), prev = out.at(-1);
-    if (prev && prev.page === n && prev.level === lv && prev.title.length + title.length < 90) { prev.title += ` ${title}`; continue; } // a heading over two lines
-    out.push({ title, page: n, level: lv });
-  }
-  return out.length > 300 ? out.filter(m => m.level === 0) : out;
-}
-function writeOutline(doc, marks) {
-  const { PDFHexString, N } = pdfObj(), ctx = doc.context, rootRef = ctx.nextRef();
-  const nodes = marks.map(m => ({ ...m, ref: ctx.nextRef(), kids: [], pageRef: m.ref }));
-  const top = [], stack = [];
-  for (const node of nodes) {
-    while (stack.length && stack.at(-1).level >= node.level) stack.pop();
-    (stack.at(-1)?.kids || top).push(node);
-    node.parent = stack.at(-1);
-    stack.push(node);
-  }
-  const count = list => list.reduce((a, k) => a + 1 + count(k.kids), 0);
-  const emit = (list, parentRef) => list.forEach((k, i) => {
-    const d = ctx.obj({ Title: PDFHexString.fromText(k.title), Parent: parentRef, Dest: [k.pageRef, 'Fit'] });
-    if (i > 0) d.set(N('Prev'), list[i - 1].ref);
-    if (i < list.length - 1) d.set(N('Next'), list[i + 1].ref);
-    if (k.kids.length) { d.set(N('First'), k.kids[0].ref); d.set(N('Last'), k.kids.at(-1).ref); d.set(N('Count'), ctx.obj(-count(k.kids))); }
-    ctx.assign(k.ref, d);
-    emit(k.kids, k.ref);
-  });
-  emit(top, rootRef);
-  ctx.assign(rootRef, ctx.obj({ Type: 'Outlines', First: top[0].ref, Last: top.at(-1).ref, Count: count(top) }));
-  doc.catalog.set(N('Outlines'), rootRef);
-  doc.catalog.set(N('PageMode'), N('UseOutlines'));
-}
-// A contents page (or pages) at the start, each line a link to its page. Returns how many pages were added.
-async function addContentsPage(doc, marks) {
-  const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica), bold = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-  const first = doc.getPage(0), { width: W, height: H } = first.getSize(), M = 64, lh = 22, perPage = Math.floor((H - 2 * M - 60) / lh);
-  const tocCount = Math.ceil(marks.length / perPage), tocPages = [];
-  for (let k = 0; k < tocCount; k++) tocPages.push(doc.insertPage(k, [W, H]));
-  const pages = doc.getPages(), { N } = pdfObj();
-  marks.forEach((m, i) => {
-    const p = tocPages[Math.floor(i / perPage)], y = H - M - 60 - (i % perPage) * lh, x = M + m.level * 18, size = m.level ? 11 : 12, f = m.level ? font : bold;
-    const num = String(m.page + tocCount), nw = font.widthOfTextAtSize(num, size);
-    let title = m.title;
-    while (title.length > 3 && f.widthOfTextAtSize(title, size) > W - x - M - nw - 30) title = `${title.slice(0, -2).trimEnd()}…`;
-    p.drawText(title, { x, y, size, font: f, color: PDFLib.rgb(.1, .1, .14) });
-    const dots = '.'.repeat(Math.max(0, Math.floor((W - M - nw - 8 - (x + f.widthOfTextAtSize(title, size) + 8)) / font.widthOfTextAtSize('.', size))));
-    p.drawText(dots, { x: x + f.widthOfTextAtSize(title, size) + 6, y, size, font, color: PDFLib.rgb(.6, .62, .66) });
-    p.drawText(num, { x: W - M - nw, y, size, font, color: PDFLib.rgb(.1, .1, .14) });
-    const link = doc.context.register(doc.context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [x, y - 5, W - M, y + size + 3], Border: [0, 0, 0], Dest: [pages[m.page - 1 + tocCount].ref, 'Fit'] }));
-    const annots = pageAnnots(p);
-    if (annots) annots.push(link); else p.node.set(N('Annots'), doc.context.obj([link]));
-  });
-  tocPages[0].drawText('Contents', { x: M, y: H - M - 20, size: 26, font: bold, color: PDFLib.rgb(.06, .06, .1) });
-  return tocCount;
 }
 
 /* ---------- Protect: a password to open, and/or limits on printing, copying and editing ---------- */
