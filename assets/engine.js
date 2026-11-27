@@ -941,7 +941,7 @@ const TOOLS = {
       const out = level === 'lossless'
         ? await (await openPdf(f)).save({ useObjectStreams: true })
         : await rasterize(await openView(f), ...{ light: [150, .8], medium: [110, .65], strong: [72, .5] }[level]);
-      if (out.byteLength > f.size * .98) throw new UserError('This PDF is already compact: compressing it saves almost nothing, so nothing was saved. Try a stronger setting.');
+      if (out.byteLength > f.size * .98) throw new UserError('This PDF is already compact, so compressing it would barely help. Try a stronger setting.');
       save(out, `${stem(f)}-compressed.pdf`);
       return `Compressed from ${kb(f.size)} to ${kb(out.byteLength)}, ${Math.round(100 - out.byteLength / f.size * 100)}% smaller`;
     },
@@ -1445,7 +1445,7 @@ const TOOLS = {
       hint('Keep this password safe. Nobody, including Nebula, can recover it.'),
     async run([f]) {
       const pw = val('o-pw');
-      if (!pw) throw new UserError('Choose a password.');
+      if (!pw) throw new UserError('Type a password first.');
       if (pw !== val('o-pw2')) throw new UserError("The passwords don't match.");
       const doc = await openPdf(f);
       doc.encrypt({ userPassword: pw, ownerPassword: pw });

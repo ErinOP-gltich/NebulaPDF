@@ -666,7 +666,7 @@ async function runTool() {
     if (!t.quiet) { // chat shows its answers in place
       showResult(msg);
       if (lastFile && !autoSaved) {
-        showToast(say(`${msg}. Your file is ready: click Download to save it.`));
+        showToast(say(`${msg}. Click Download to save your file.`));
         $('again')?.classList.add('attention');
         $('again')?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' });
         $('again')?.focus({ preventScroll: true });
@@ -689,7 +689,7 @@ function showResult(msg) {
   const next = f ? (SUGGEST[kindOf(f)] || []).filter(id => id !== currentTool).slice(0, 4) : [];
   box.innerHTML = `<div class="result">
     <div class="result-head"><span class="result-check">${icon('check')}</span><div style="min-width:0"><p class="result-title">${esc(msg)}</p>${f ? `<p class="result-file">${esc(f.name)}, ${kb(f.size)}</p>` : ''}</div></div>
-    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">${autoSaved ? 'It should download by itself. If your browser blocked it, use this button.' : say('This took a little while, so your browser needs one click to save it.')}</p>` : ''}
+    ${f ? `<button class="btn" id="again">${icon('download')}Download ${esc(f.name.split('.').pop().toUpperCase())}</button><p class="hint">${autoSaved ? 'It’s downloading now. If your browser blocked it, use this button.' : say('This took a moment, so your browser needs one click to save it.')}</p>` : ''}
     ${next.length ? `<p class="next-label">Keep going with this file</p><div class="row">${next.map(id => `<button class="chip" data-id="${id}">${icon(TOOLS[id].icon)}${TOOLS[id].name}</button>`).join('')}</div>` : ''}</div>`;
   box.classList.remove('hidden');
   if (f) $('again').onclick = () => { save(f, f.name); $('again').classList.remove('attention'); };
