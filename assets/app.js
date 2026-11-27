@@ -303,7 +303,7 @@ const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(
   <span class="cell-top"><span class="num">${n}</span><span class="label">${groupName(t.group)}</span></span>
   ${big ? '' : `<span class="card-icon">${icon(t.icon)}</span>`}
   <span class="card-text"><span class="card-name">${t.name}</span><span class="card-desc">${t.desc}</span></span>
-  <span class="tags">${tagsOf(id).map(x => `<span class="tag">${x}</span>`).join('')}</span>
+  <span class="tags">${tagsOf(id).map(x => `<span class="tag">${x}</span>`).join('')}${t.ai === 'both' ? '<span class="tag soon-tag">Claude: coming soon</span>' : ''}</span>
   <span class="cell-foot label">Open tool${icon('open')}</span></button>`; };
 const ids = Object.keys(TOOLS);
 $('tools-count').textContent = `${ids.length} tools, ${GROUPS.length} groups`;
@@ -489,6 +489,7 @@ function selectTool(id) {
   $('ws-crumb').textContent = `Tool ${String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0')} / ${groupName(t.group)}`;
   document.documentElement.dataset.g = t.group;
   $('tool-desc').textContent = t.desc;
+  if (t.ai === 'both') $('tool-desc').insertAdjacentHTML('beforeend', `<span class="soon-pill">${icon('ai')}Claude (cloud) mode coming soon. This runs on your device for now.</span>`);
   const note = document.querySelector('.local-note');
   if (note) note.lastChild.textContent = 'Processed on this device. Nothing is uploaded.'; // AI tools in cloud mode change this
   $('tool-content').innerHTML = t.accept ? `<div id="drop-zone" class="drop" role="button" tabindex="0" data-cursor="drop">

@@ -20,6 +20,7 @@ async function cloudReady() {
   }
   return AI.cloud;
 }
+cloudReady().then(ok => document.documentElement.classList.toggle('cloud-ready', ok)); // hides the "coming soon" tags once a key is set
 const ENGINE = `<div class="engine" id="o-engine-box">
   <div class="seg" role="group" aria-label="Where the AI runs" id="o-engine">
     <button type="button" class="seg-btn" data-k="device" onclick="pickEngine(this)">${icon('shield-check')}On this device</button>

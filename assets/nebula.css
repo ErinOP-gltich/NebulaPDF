@@ -282,6 +282,10 @@ kbd { font: 500 .72rem/1 var(--f-mono); padding: 4px 6px; border-radius: 4px; ba
 .tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag { padding: 3px 6px; border-radius: 3px; border: 1px solid var(--line-2); font: 500 .66rem/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
 .tag:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); color: var(--c); }
+.tag.soon-tag { border-style: dashed; border-color: color-mix(in srgb, var(--g-ai) 55%, transparent); color: var(--text); }
+.soon-pill { display: flex; align-items: center; gap: 8px; width: fit-content; margin-top: 12px; padding: 6px 12px; border-radius: var(--r-full); border: 1px dashed color-mix(in srgb, var(--g-ai) 55%, transparent); background: color-mix(in srgb, var(--g-ai) 10%, transparent); color: var(--text); font-size: .84rem; }
+.soon-pill .ic { width: 16px; height: 16px; flex: none; }
+.cloud-ready :is(.soon-tag, .soon-pill) { display: none; }
 .cell-foot { display: flex; align-items: center; justify-content: space-between; margin: 0 -20px; padding: 13px 20px; border-top: 1px solid var(--line); transition: color var(--d-s); }
 .cell-foot .ic { width: 15px; height: 15px; transition: transform var(--d-m) var(--ease-out); }
 .card:hover .cell-foot { color: var(--text); }
