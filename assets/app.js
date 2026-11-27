@@ -469,8 +469,9 @@ function openTool(id, card, files) {
   swap(() => { selectTool(id); showView('workspace'); scrollTo(0, 0); if (files?.length) handleFiles(files); }, shared);
   if (location.hash !== `#${id}`) history.pushState({ tool: id }, '', `#${id}`);
 }
-function goHome(push = true) {
-  swap(() => { showView('dashboard'); scrollTo(0, homeScroll); document.title = 'Nebula'; });
+function goHome(push = true, to = '') {
+  // the scroll happens inside the transition: one made after it would be undone when the transition lands
+  swap(() => { showView('dashboard'); if (to) $(to).scrollIntoView(); else scrollTo(0, homeScroll); document.title = 'Nebula'; });
   if (push && location.hash) history.pushState({}, '', location.pathname + location.search);
 }
 addEventListener('popstate', () => {
@@ -482,8 +483,7 @@ addEventListener('popstate', () => {
 function goHomeTo(e, id) {
   if (views.workspace.classList.contains('hidden')) return;
   e.preventDefault();
-  goHome();
-  setTimeout(() => $(id).scrollIntoView({ behavior: calm() ? 'auto' : 'smooth' }), 80);
+  goHome(true, id);
 }
 
 /* ---------- the tool screen ---------- */
@@ -787,7 +787,7 @@ if ('launchQueue' in window) launchQueue.setConsumer(async p => { const files = 
 
 /* ---------- scroll ruler and section index: where you are on the home page ---------- */
 (() => {
-  const secs = [['top', document.querySelector('.hero')], ['tools', $('tools')], ['privacy', $('privacy')]];
+  const secs = [['top', document.querySelector('.hero')], ['tools', $('tools')], ['privacy', $('privacy')], ['about', $('about')]];
   let queued = false;
   const tick = () => {
     queued = false;
