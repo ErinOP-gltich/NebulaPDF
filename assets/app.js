@@ -209,7 +209,7 @@ const IO = { merge: 'Any → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', 
   ocr: 'PDF / Image → Text', jpg2pdf: 'Image → PDF', word2pdf: 'DOCX → PDF', excel2pdf: 'XLSX → PDF', text2pdf: 'Text → PDF', pdf2jpg: 'PDF → JPG / PNG',
   pdf2word: 'PDF → DOCX', pdf2ppt: 'PDF → PPTX', pdf2excel: 'PDF → XLSX', sign: 'PDF → PDF', edittext: 'PDF → PDF', fillform: 'PDF → PDF', numbers: 'PDF → PDF',
   watermark: 'PDF → PDF', crop: 'PDF → PDF', redact: 'PDF → PDF', protect: 'PDF → PDF', unlock: 'PDF → PDF',
-  flatten: 'PDF → PDF', removeannots: 'PDF → PDF', findredact: 'PDF → PDF', compare: '2 PDFs → Report', ppt2pdf: 'PPTX → PDF' };
+  flatten: 'PDF → PDF', removeannots: 'PDF → PDF', findredact: 'PDF → PDF', compare: '2 PDFs → Report', ppt2pdf: 'PPTX → PDF', workflow: 'PDF → PDF' };
 const tagsOf = id => { const t = TOOLS[id]; return [IO[id], t.ai === 'device' ? 'On-device AI' : t.ai && 'AI', t.batch && 'Batch', t.multiple && 'Many files', /OCR/.test(t.desc) && 'OCR'].filter(Boolean); };
 const groupName = g => GROUPS.find(x => x[0] === g)[1];
 const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0'); return `<button class="card cell reveal${big ? ' featured' : ''}" data-id="${id}" data-g="${t.group}" onclick="openTool('${id}', this)">

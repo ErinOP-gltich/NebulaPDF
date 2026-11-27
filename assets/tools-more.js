@@ -717,11 +717,17 @@ async function convertToPdf(f) {
   }
   const id = { docx: 'word2pdf', sheet: 'excel2pdf', pptx: 'ppt2pdf' }[kind];
   if (!id) throw new UserError(`${f.name} can't be merged. Use PDFs, images, Word, Excel, PowerPoint or text files.`);
-  await need(...TOOLS[id].libs);
+  return (await captureRun(id, [f]))[0].data.arrayBuffer();
+}
+// Run a tool and return what it would have downloaded, as [{name, data: Blob}], without downloading it.
+async function captureRun(id, files) {
+  await need(...(TOOLS[id].libs || []));
   const prev = saveSink;
   saveSink = [];
-  try { await TOOLS[id].run([f]); return await new Blob([saveSink[0].data]).arrayBuffer(); }
-  finally { saveSink = prev; }
+  try {
+    const msg = await TOOLS[id].run(files);
+    return Object.assign(saveSink.map(o => ({ name: o.name, data: new Blob([o.data], { type: 'application/pdf' }) })), { msg });
+  } finally { saveSink = prev; }
 }
 Object.assign(TOOLS.merge, {
   name: 'Merge files', keys: 'combine join merge pdf images word excel powerpoint photos documents any',
@@ -741,3 +747,89 @@ Object.assign(TOOLS.merge, {
     return `Merged ${plural(files.length, 'file')} into ${plural(out.getPageCount(), 'page')}`;
   },
 });
+
+/* ---------- Workflow: run several PDF tools one after another, each on the last one's result ---------- */
+const WF_TOOLS = ['unlock', 'repair', 'rotate', 'remove', 'removeannots', 'flatten', 'findredact', 'watermark', 'numbers', 'pdfclean', 'compress', 'protect'];
+let wf = [], wfOpen = -1; // steps: [{id, v: {element id: value}}]; the step whose settings are showing
+try { wf = JSON.parse(store2.get('nebula-workflow')) || []; } catch { wf = []; }
+wf = wf.filter(s => WF_TOOLS.includes(s?.id));
+// Settings are kept as values by element id, so one step's form can be put away and brought back.
+const wfGrab = box => {
+  const v = {};
+  box.querySelectorAll('[id]').forEach(el => {
+    if (el.matches('.seg')) v[el.id] = segValue(el.id);
+    else if (el.type === 'checkbox') v[el.id] = el.checked;
+    else if (el.type === 'file') v[el.id] = el.files[0] || null;
+    else if (el.matches('input, select, textarea')) v[el.id] = el.value;
+  });
+  return v;
+};
+const wfPut = (box, v) => Object.entries(v || {}).forEach(([id, x]) => {
+  const el = box.querySelector(`#${CSS.escape(id)}`);
+  if (!el || x == null) return;
+  if (el.matches('.seg')) { const b = el.querySelector(`[data-k="${x}"]`); if (b) segPick(b); }
+  else if (el.type === 'checkbox') el.checked = x;
+  else if (el.type === 'file') { const d = new DataTransfer(); d.items.add(x); el.files = d.files; }
+  else el.value = x;
+});
+// Passwords and picked files stay in memory only.
+const wfKeep = () => store2.set('nebula-workflow', JSON.stringify(wf.map(s => ({ id: s.id, v: Object.fromEntries(Object.entries(s.v || {}).filter(([k, x]) => !(x instanceof File) && !/^o-pw/.test(k))) }))));
+function wfSaveOpen() { const box = $('wf-edit'); if (box && wf[wfOpen]) wf[wfOpen].v = wfGrab(box); wfKeep(); }
+function wfDraw() {
+  const list = $('wf-steps');
+  if (!list) return;
+  list.innerHTML = wf.map((s, i) => { const t = TOOLS[s.id]; return `<li class="file-item">
+    <span class="file-badge">${icon(t.icon)}</span>
+    <div><span class="file-name">${i + 1}. ${esc(t.name)}</span><span class="file-meta">${t.options ? (wfOpen === i ? 'Settings below' : 'Change its settings with the pencil') : 'No settings'}</span></div>
+    <div class="file-actions">
+      ${t.options ? `<button type="button" class="icon-btn" onclick="wfAct('edit', ${i})" aria-label="Settings for ${esc(t.name)}" aria-expanded="${wfOpen === i}">${icon('edit')}</button>` : ''}
+      <button type="button" class="icon-btn" onclick="wfAct('up', ${i})" aria-label="Move ${esc(t.name)} up" ${i ? '' : 'disabled'}>${icon('arrow-up')}</button>
+      <button type="button" class="icon-btn" onclick="wfAct('down', ${i})" aria-label="Move ${esc(t.name)} down" ${i < wf.length - 1 ? '' : 'disabled'}>${icon('arrow-down')}</button>
+      <button type="button" class="icon-btn" onclick="wfAct('del', ${i})" aria-label="Remove ${esc(t.name)}">${icon('x')}</button></div></li>
+    ${wfOpen === i ? `<li id="wf-edit" class="options options-sub">${t.options()}</li>` : ''}`; }).join('') ||
+    '<li class="hint">No steps yet. Add the first one below.</li>';
+  const box = $('wf-edit');
+  if (box) { wfPut(box, wf[wfOpen].v); box.oninput = box.onchange = wfSaveOpen; }
+}
+function wfAct(act, i) {
+  wfSaveOpen();
+  if (act === 'edit') wfOpen = wfOpen === i ? -1 : i;
+  if (act === 'del') { wf.splice(i, 1); wfOpen = -1; }
+  if (act === 'up' || act === 'down') { const j = act === 'up' ? i - 1 : i + 1; [wf[i], wf[j]] = [wf[j], wf[i]]; wfOpen = wfOpen === i ? j : wfOpen === j ? i : wfOpen; }
+  if (act === 'add') { wf.push({ id: i, v: {} }); wfOpen = TOOLS[i].options ? wf.length - 1 : -1; }
+  wfKeep();
+  wfDraw();
+}
+TOOLS.workflow = {
+  group: 'organize', name: 'Workflow', icon: 'bolt', keys: 'workflow chain steps automate pipeline batch several tools sequence recipe',
+  desc: 'Chain tools into one run: for example, remove pages, add a watermark and page numbers, compress, then add a password.',
+  accept: PDF, batch: true, btn: 'Run workflow', libs: ['pdflib'],
+  note: 'Add one or more PDFs. Every file goes through each step in order.',
+  options: () => `<div class="field"><span class="field-label">Steps, in order</span><ul id="wf-steps" class="files"></ul></div>
+    <label class="field"><span class="field-label">Add a step</span><select id="wf-add" class="input"><option value="">Choose a tool…</option>${WF_TOOLS.map(id => `<option value="${id}">${esc(TOOLS[id].name)}</option>`).join('')}</select></label>
+    ${hint('Your steps are remembered on this device for next time. Passwords and logo images are not.')}`,
+  afterOptions() { $('wf-add').onchange = e => { if (e.target.value) wfAct('add', e.target.value); e.target.value = ''; }; wfDraw(); },
+  async run([f]) {
+    if (!wf.length) throw new UserError('Add at least one step first.');
+    wfSaveOpen();
+    if (wfOpen >= 0) { wfOpen = -1; wfDraw(); } // one form at a time, so element ids never clash
+    const stage = document.body.appendChild(Object.assign(document.createElement('div'), { hidden: true }));
+    const done = [];
+    let cur = f;
+    try {
+      for (const [k, s] of wf.entries()) {
+        const t = TOOLS[s.id];
+        progress(`Step ${k + 1}: ${t.name}`, k / wf.length);
+        stage.innerHTML = t.options ? t.options() : '';
+        wfPut(stage, s.v);
+        let out;
+        try { out = await captureRun(s.id, [cur]); }
+        catch (e) { throw e instanceof UserError ? new UserError(`Step ${k + 1}, ${t.name}: ${e.message}`) : e; }
+        cur = new File([out[0].data], out[0].name, { type: 'application/pdf' });
+        done.push(out.msg);
+      }
+    } finally { stage.remove(); }
+    save(cur, cur.name);
+    return done.join(' · ');
+  },
+};

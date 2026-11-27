@@ -394,6 +394,8 @@ kbd { font: 500 .72rem/1 var(--f-mono); padding: 4px 6px; border-radius: 4px; ba
 .file-actions { display: flex; gap: 2px; }
 .file-actions .icon-btn { width: 36px; height: 36px; }
 .file-actions .ic { width: 18px; height: 18px; }
+/* Workflow steps: on a phone the step's buttons get their own line, so its name stays readable */
+@media (max-width: 560px) { #wf-steps .file-item { grid-template-columns: auto minmax(0, 1fr); } #wf-steps .file-actions { grid-column: 1 / -1; justify-content: flex-end; } }
 
 .options { margin-top: 22px; display: grid; gap: 18px; }
 .field-row { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: end; }
