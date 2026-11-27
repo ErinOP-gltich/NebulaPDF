@@ -176,21 +176,30 @@ const sky = (() => {
 (() => {
   const track = $('marquee');
   track.innerHTML = ['PDF', 'DOCX', 'XLSX', 'PPTX', 'JPG', 'PNG', 'WEBP', 'CSV', 'TXT', 'ODS', 'GIF'].map(w => `<span>${w}</span><i></i>`).join('').repeat(4);
-  let x = 0, v = 0, lastY = scrollY, dir = 1;
-  (function loop() {
+  // v is signed, so turning round eases through a stop instead of flipping; everything is scaled by frame time, so 60 Hz and 120 Hz screens move alike
+  let x = 0, v = .5, w = 0, dir = 1, lastY = scrollY, last = 0, running = false, seen = false;
+  const measure = () => { w = track.scrollWidth / 4; };
+  measure();
+  addEventListener('resize', measure, { passive: true });
+  document.fonts?.ready.then(measure);
+  const loop = t => {
+    const dt = last ? Math.min(3, (t - last) / 16.7) : 1;
+    last = t;
     const dy = scrollY - lastY;
     lastY = scrollY;
     if (dy) dir = dy > 0 ? 1 : -1;
-    v += (Math.min(40, Math.abs(dy)) - v) * .08;
-    if (!calm()) {
-      const w = track.scrollWidth / 4;
-      x -= (.5 + v * .8) * dir;
-      if (x < -w) x += w;
-      if (x > 0) x -= w;
-      track.style.transform = `translate3d(${x}px, 0, 0)`;
+    const target = dir * (.5 + Math.min(40, Math.abs(dy) / dt) * .8);
+    v += (target - v) * (1 - .93 ** dt);
+    if (!calm() && w) {
+      x -= v * dt;
+      x = ((x % w) - w) % w; // keep x in (-w, 0]
+      track.style.transform = `translate3d(${x.toFixed(2)}px, 0, 0)`;
     }
-    requestAnimationFrame(loop);
-  })();
+    if (seen && !document.hidden) requestAnimationFrame(loop); else running = false;
+  };
+  const sync = () => { if (seen && !document.hidden && !running) { running = true; last = 0; lastY = scrollY; requestAnimationFrame(loop); } };
+  new IntersectionObserver(([e]) => { seen = e.isIntersecting; sync(); }).observe(track.parentElement);
+  document.addEventListener('visibilitychange', sync);
 })();
 
 /* ---------- tool grid: a row of the most used tools, then every group under its own heading ---------- */

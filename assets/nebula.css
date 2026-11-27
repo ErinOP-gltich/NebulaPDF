@@ -299,7 +299,7 @@ kbd { font: 500 .72rem/1 var(--f-mono); padding: 4px 6px; border-radius: 4px; ba
 .cell-art .card-icon .ic { width: 34px; height: 34px; }
 .card.featured .cell-top { margin-top: 2px; }
 .card.featured .card-name { font: 400 clamp(1.9rem, 2.4vw, 2.4rem)/1 var(--f-display); letter-spacing: -.02em; }
-.card .orb { position: absolute; width: 180px; height: 180px; border-radius: 50%; background: var(--c); filter: blur(50px); opacity: .25; transition: opacity var(--d-m), transform var(--d-l) var(--ease-out); }
+.card .orb { position: absolute; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(closest-side, var(--c), transparent); opacity: .3; transition: opacity var(--d-m), transform var(--d-l) var(--ease-out); }
 .card.featured:hover .orb { opacity: .5; transform: scale(1.25); }
 .empty { padding: 40px 0; color: var(--text-2); }
 
