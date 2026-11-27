@@ -947,3 +947,20 @@ button, a, label, .drop, .card { -webkit-tap-highlight-color: transparent; touch
 .session-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .session-actions .btn-ghost { font-family: var(--f-body); text-transform: none; letter-spacing: 0; }
 @media (max-width: 620px) { .session-actions { margin-left: 0; } }
+
+/* ---------- more tools: find & redact presets, compare report ---------- */
+.check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 18px; }
+.compare-report { display: grid; gap: 22px; }
+.cmp-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.cmp-head p { margin: 0; color: var(--text-2); }
+.cmp-page { display: grid; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.cmp-page header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.cmp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cmp-pair figure { margin: 0; display: grid; gap: 6px; align-content: start; }
+.cmp-pair canvas { width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--r-s); background: #fff; }
+.cmp-missing { display: grid; place-items: center; aspect-ratio: 3 / 4; border: 1px dashed var(--line-2); border-radius: var(--r-s); color: var(--muted); }
+.cmp-text { margin: 0; line-height: 1.7; color: var(--text-2); font-size: .95rem; }
+.cmp-text del, .cmp-head del { color: #e5484d; background: color-mix(in srgb, #e5484d 14%, transparent); }
+.cmp-text ins, .cmp-head ins { color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); text-decoration-thickness: 2px; }
+.cmp-same { display: flex; gap: 10px; align-items: center; color: var(--text-2); }
+@media (max-width: 560px) { .cmp-pair { grid-template-columns: 1fr; } }
