@@ -209,7 +209,7 @@ const IO = { merge: 'PDF → PDF', split: 'PDF → PDF', remove: 'PDF → PDF', 
   ocr: 'PDF / Image → Text', jpg2pdf: 'Image → PDF', word2pdf: 'DOCX → PDF', excel2pdf: 'XLSX → PDF', text2pdf: 'Text → PDF', pdf2jpg: 'PDF → JPG / PNG',
   pdf2word: 'PDF → DOCX', pdf2ppt: 'PDF → PPTX', pdf2excel: 'PDF → XLSX', sign: 'PDF → PDF', edittext: 'PDF → PDF', fillform: 'PDF → PDF', numbers: 'PDF → PDF',
   watermark: 'PDF → PDF', crop: 'PDF → PDF', redact: 'PDF → PDF', protect: 'PDF → PDF', unlock: 'PDF → PDF',
-  flatten: 'PDF → PDF', removeannots: 'PDF → PDF', findredact: 'PDF → PDF', compare: '2 PDFs → Report' };
+  flatten: 'PDF → PDF', removeannots: 'PDF → PDF', findredact: 'PDF → PDF', compare: '2 PDFs → Report', ppt2pdf: 'PPTX → PDF' };
 const tagsOf = id => { const t = TOOLS[id]; return [IO[id], t.ai === 'device' ? 'On-device AI' : t.ai && 'AI', t.batch && 'Batch', t.multiple && 'Many files', /OCR/.test(t.desc) && 'OCR'].filter(Boolean); };
 const groupName = g => GROUPS.find(x => x[0] === g)[1];
 const card = (id, big = false) => { const t = TOOLS[id], n = String(Object.keys(TOOLS).indexOf(id) + 1).padStart(2, '0'); return `<button class="card cell reveal${big ? ' featured' : ''}" data-id="${id}" data-g="${t.group}" onclick="openTool('${id}', this)">
@@ -304,14 +304,14 @@ addEventListener('keydown', e => {
 /* ---------- files from anywhere: drop on the page, or "Choose a file", then pick a tool ---------- */
 function pickAny() {
   const input = $('file-input');
-  Object.assign(input, { accept: '.pdf,image/*,.docx,.xlsx,.xls,.csv,.ods,.txt,.md', multiple: true, value: '' });
+  Object.assign(input, { accept: '.pdf,image/*,.docx,.pptx,.xlsx,.xls,.csv,.ods,.txt,.md', multiple: true, value: '' });
   input.onchange = () => { route([...input.files]); input.value = ''; };
   input.click();
 }
 function route(files) {
   if (!files.length) return;
   const kind = kindOf(files[0]);
-  if (!kind) return showToast(`${files[0].name} isn't a file Nebula can work with. Try a PDF, image, Word, Excel or text file.`, true);
+  if (!kind) return showToast(`${files[0].name} isn't a file Nebula can work with. Try a PDF, image, Word, PowerPoint, Excel or text file.`, true);
   const same = files.filter(f => kindOf(f) === kind);
   let ids = SUGGEST[kind];
   if (kind === 'pdf' && same.length > 1) ids = ['merge', ...ids.filter(i => i !== 'merge')];
@@ -500,7 +500,7 @@ async function drawPreview() {
     box.replaceChildren(img);
     return;
   }
-  if (!isPdf(f)) { box.innerHTML = `<div class="preview-empty">${icon(kindOf(f) === 'sheet' ? 'sheet' : 'file-text')}<span class="mono">${esc(f.name)}</span></div>`; return; }
+  if (!isPdf(f)) { box.innerHTML = `<div class="preview-empty">${icon({ sheet: 'sheet', pptx: 'presentation' }[kindOf(f)] || 'file-text')}<span class="mono">${esc(f.name)}</span></div>`; return; }
   box.innerHTML = `<div class="preview-empty"><span class="spin"></span></div>`;
   try {
     const view = await openView(f), w = (await view.getPage(1)).getViewport({ scale: 1 }).width;

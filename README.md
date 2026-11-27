@@ -20,14 +20,14 @@ The AI tools run an open-source model on your device too. Each one has an option
 |---|---|
 | Organize | Merge PDFs, Split PDF, Remove pages, Organize pages (reorder, turn, delete), Rotate PDF |
 | Optimize | Compress PDF (lossless or image-based), Repair PDF, Read text (OCR, images and scanned PDFs) |
-| Convert to PDF | Images to PDF, Word to PDF, Excel to PDF, Text to PDF |
+| Convert to PDF | Images to PDF, Word to PDF, Excel to PDF, PowerPoint to PDF, Text to PDF |
 | Convert from PDF | PDF to images (JPG/PNG), PDF to Word, PDF to PowerPoint, PDF to Excel |
-| Edit & sign | Sign PDF, Edit PDF (change existing text, add text, white out), Fill in a form, Add page numbers, Add watermark, Crop PDF, Redact PDF |
+| Edit & sign | Sign PDF (draw, type or upload a signature), Edit PDF (change existing text, add text, white out), Fill in a form, Add page numbers, Add watermark, Crop PDF, Redact PDF |
 | Security | Protect PDF (AES-256), Unlock PDF, View PDF metadata, Remove PDF metadata |
 | Image tools | Resize, Crop, Compress, Convert (JPG/PNG/WebP), HEIC to JPG, Remove background, Image enhancer |
 | AI tools | AI PDF summarizer, AI resume analyzer, AI OCR, AI tool finder, Chat with PDF, AI document translator, AI quiz generator, AI image upscaler (2×/4×/8×), plus Remove background and Image enhancer |
 
-**Batch:** Rotate, Compress, Repair, Word to PDF, Excel to PDF, PDF to images, PDF to Word, PDF to PowerPoint, PDF to Excel, page numbers, watermark, Protect, Unlock, Remove metadata and the image resize, compress, convert and HEIC tools take many files at once and return one zip, with a ✓ or ✕ and the reason for each file.
+**Batch:** Rotate, Compress, Repair, Word to PDF, Excel to PDF, PowerPoint to PDF, PDF to images, PDF to Word, PDF to PowerPoint, PDF to Excel, page numbers, watermark, Protect, Unlock, Remove metadata and the image resize, compress, convert and HEIC tools take many files at once and return one zip, with a ✓ or ✕ and the reason for each file.
 
 **Page picking:** Split, Remove pages, Rotate and PDF to images show every page as a thumbnail to click (Shift-click picks a run; All, None, Odd and Even shortcuts), kept in step with the page-range box. The result's first page is previewed beside the tool.
 

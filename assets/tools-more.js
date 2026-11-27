@@ -382,3 +382,317 @@ Object.assign(TOOLS.sign, {
     $('o-sigfile').onchange = e => e.target.files[0] && sigUpload(e.target.files[0]);
   },
 });
+
+/* ---------- PowerPoint to PDF: each slide is drawn on a canvas from its XML (with what it inherits from its layout,
+   master and theme), then becomes one page. Text, shapes, pictures and tables come across; charts and effects don't. ---------- */
+const PT = 12700; // EMU in a point
+const xkid = (el, ...path) => path.reduce((e, n) => e && [...e.children].find(c => c.localName === n), el);
+const xkids = (el, n) => el ? [...el.children].filter(c => !n || c.localName === n) : [];
+const xdeep = (el, n) => el?.getElementsByTagNameNS('*', n)[0];
+const xnum = (el, a, d = 0) => el?.hasAttribute(a) ? +el.getAttribute(a) : d;
+const first = (list, f) => { for (const e of list) { const v = e && f(e); if (v != null) return v; } };
+const zipPath = (dir, t) => { if (t.startsWith('/')) return t.slice(1); const out = dir.split('/').filter(Boolean); for (const s of t.split('/')) s === '..' ? out.pop() : s && s !== '.' && out.push(s); return out.join('/'); };
+const rgb2hsl = (r, g, b) => {
+  [r, g, b] = [r / 255, g / 255, b / 255];
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l];
+  const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, l > .5 ? d / (2 - mx - mn) : d / (mx + mn), l];
+};
+const hsl2rgb = (h, s, l) => {
+  if (!s) return [l * 255, l * 255, l * 255];
+  const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { t = (t + 1) % 1; return 255 * (t < 1 / 6 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p); };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
+};
+const PRST_CLR = { black: '000000', white: 'FFFFFF', red: 'FF0000', green: '008000', blue: '0000FF', yellow: 'FFFF00', gray: '808080', grey: '808080', orange: 'FFA500' };
+// The colour inside a fill, a style reference or a gradient stop, with its tint, shade, brightness and transparency.
+function pptColor(holder, S) {
+  const c = xkids(holder).find(c => /Clr$/.test(c.localName));
+  if (!c) return null;
+  const v = c.getAttribute('val');
+  const hex = c.localName === 'srgbClr' ? v : c.localName === 'sysClr' ? c.getAttribute('lastClr') || (v === 'window' ? 'FFFFFF' : '000000')
+    : c.localName === 'schemeClr' ? S.scheme(v) : PRST_CLR[v] || '000000';
+  let [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) || 0), a = 1;
+  for (const m of xkids(c)) {
+    const k = xnum(m, 'val') / 1e5, n = m.localName;
+    if (n === 'alpha') a = k;
+    else if (n === 'shade') [r, g, b] = [r, g, b].map(x => x * k);
+    else if (n === 'tint') [r, g, b] = [r, g, b].map(x => 255 - (255 - x) * k);
+    else if (n === 'lumMod' || n === 'lumOff') { const [h, s, l] = rgb2hsl(r, g, b); [r, g, b] = hsl2rgb(h, s, n === 'lumMod' ? l * k : Math.min(1, l + k)); }
+  }
+  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
+}
+// A fill: null for none, a colour string, or { blip } for a picture fill. `ref` is the theme style used when the shape sets none.
+function pptFill(el, S, ref) {
+  for (const c of xkids(el)) {
+    if (c.localName === 'noFill') return null;
+    if (c.localName === 'solidFill') return pptColor(c, S);
+    if (c.localName === 'gradFill') return pptColor(xdeep(c, 'gs'), S);
+    if (c.localName === 'blipFill') return { blip: xdeep(c, 'blip')?.getAttribute('r:embed'), src: xdeep(c, 'srcRect') };
+  }
+  return ref && xnum(ref, 'idx') ? pptColor(ref, S) : null;
+}
+async function pptImage(S, part, rid) {
+  const p = part.rels[rid], f = p && S.zip.file(p);
+  if (!f) return null;
+  return S.imgs[p] ??= f.async('blob').then(b => createImageBitmap(b)).catch(() => null); // EMF/WMF and other formats browsers can't draw are left out
+}
+async function pptDrawImage(ctx, S, part, fill, b) {
+  const img = await pptImage(S, part, fill.blip);
+  if (!img) return;
+  const s = fill.src, [l, t, r, btm] = ['l', 't', 'r', 'b'].map(k => xnum(s, k) / 1e5);
+  ctx.drawImage(img, img.width * l, img.height * t, img.width * (1 - l - r), img.height * (1 - t - btm), b.x, b.y, b.w, b.h);
+}
+// Traces the outline of a shape; returns false for lines, which have no inside to fill.
+function pptPath(ctx, spPr, { x, y, w, h }) {
+  const g = xkid(spPr, 'prstGeom'), cust = xkid(spPr, 'custGeom'), p = g?.getAttribute('prst') || (cust ? 'cust' : 'rect');
+  ctx.beginPath();
+  if (p === 'ellipse') ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, 2 * Math.PI);
+  else if (p === 'roundRect' && ctx.roundRect) { const gd = xdeep(g, 'gd'); ctx.roundRect(x, y, w, h, Math.min(w, h) * (gd ? +gd.getAttribute('fmla').split(' ')[1] / 1e5 : .16667)); }
+  else if (/^(line|straightConnector1|.*Connector\d)$/.test(p)) { ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); return false; }
+  else if (p === 'triangle') { ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); }
+  else if (p === 'rtTriangle') { ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); }
+  else if (p === 'diamond') { ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h / 2); ctx.lineTo(x + w / 2, y + h); ctx.lineTo(x, y + h / 2); ctx.closePath(); }
+  else if (p === 'cust') {
+    for (const path of xkids(xdeep(cust, 'pathLst'), 'path')) {
+      const sx = path.hasAttribute('w') ? w / (xnum(path, 'w') || 1) : 1 / PT, sy = path.hasAttribute('h') ? h / (xnum(path, 'h') || 1) : 1 / PT;
+      const pt = e => [x + xnum(e, 'x') * sx, y + xnum(e, 'y') * sy];
+      for (const c of xkids(path)) {
+        const pts = xkids(c, 'pt').map(pt);
+        if (c.localName === 'moveTo') ctx.moveTo(...pts[0]);
+        else if (c.localName === 'lnTo') ctx.lineTo(...pts[0]);
+        else if (c.localName === 'cubicBezTo') ctx.bezierCurveTo(...pts.flat());
+        else if (c.localName === 'quadBezTo') ctx.quadraticCurveTo(...pts.flat());
+        else if (c.localName === 'close') ctx.closePath();
+      }
+    }
+  }
+  else ctx.rect(x, y, w, h); // ponytail: other preset shapes (arrows, stars…) draw as their box; add outlines when someone needs them
+  return true;
+}
+const WINGDINGS = { 'Ø': '➢', '§': '▪', q: '❑', ü: '✓', v: '❖', n: '■', l: '●', Ü: '➢', 'à': '➔' };
+const fontStack = face => `"${face}", ${/Times|Georgia|Cambria|Garamond|Book|Serif/i.test(face) ? 'Georgia, serif' : 'Carlito, Arial, sans-serif'}`;
+// Lays out and draws a text body inside box b. `chain(lvl)` lists the paragraph styles to fall back on, nearest first.
+// With dry set it only measures, and returns the height the text needs.
+function pptText(ctx, txBody, b, S, { chain, bodies = [], color, title, anchor: anchor0, ins: ins0, dry }) {
+  const bodyList = [xkid(txBody, 'bodyPr'), ...bodies];
+  const ins = (k, d) => first(bodyList, e => e.hasAttribute(k) ? xnum(e, k) / PT : null) ?? d;
+  const { L, R, T, B } = ins0 || { L: ins('lIns', 7.2), R: ins('rIns', 7.2), T: ins('tIns', 3.6), B: ins('bIns', 3.6) };
+  const anchor = anchor0 || first(bodyList, e => e.getAttribute('anchor')) || 't', wrap = first(bodyList, e => e.getAttribute('wrap')) !== 'none';
+  const fit = xdeep(xkid(txBody, 'bodyPr'), 'normAutofit'), scale = xnum(fit, 'fontScale', 1e5) / 1e5, lnRed = xnum(fit, 'lnSpcReduction') / 1e5;
+  const maxW = Math.max(1, b.w - L - R), lines = [], counters = {};
+  const runStyle = (rPr, ch) => {
+    const list = [rPr, ...ch.map(c => xkid(c, 'defRPr'))];
+    const size = (first(list, e => e.hasAttribute('sz') ? xnum(e, 'sz') / 100 : null) ?? 18) * scale;
+    const flag = k => first(list, e => e.hasAttribute(k) ? /^(1|true)$/.test(e.getAttribute(k)) : null) ?? false;
+    let face = first(list, e => xkid(e, 'latin')?.getAttribute('typeface')) ?? (title ? '+mj-lt' : '+mn-lt');
+    if (face.startsWith('+')) face = face.startsWith('+mj') ? S.fonts.major : S.fonts.minor;
+    return { size, bold: flag('b'), italic: flag('i'), under: first(list, e => e.getAttribute('u')) > '' && first(list, e => e.getAttribute('u')) !== 'none',
+      color: first(list.slice(0, -1), e => xkid(e, 'solidFill') && pptColor(xkid(e, 'solidFill'), S)) ?? color ?? first(list.slice(-1), e => xkid(e, 'solidFill') && pptColor(xkid(e, 'solidFill'), S)) ?? `#${S.scheme('tx1')}`, // the shape's theme style comes before the master's default
+      font: `${flag('i') ? 'italic ' : ''}${flag('b') ? 'bold ' : ''}${size.toFixed(2)}px ${fontStack(face)}` };
+  };
+  for (const p of xkids(txBody, 'p')) {
+    const pPr = xkid(p, 'pPr'), lvl = xnum(pPr, 'lvl'), ch = [pPr, ...chain(lvl)];
+    const at = (k, d) => first(ch, e => e.hasAttribute(k) ? e.getAttribute(k) : null) ?? d;
+    const algn = at('algn', 'l'), marL = +at('marL', 0) / PT, indent = +at('indent', 0) / PT;
+    const sp = first(ch, e => xkid(e, 'lnSpc')), spc = sp && xkid(sp, 'spcPct') ? xnum(xkid(sp, 'spcPct'), 'val') / 1e5 : 1, spcPts = sp && xkid(sp, 'spcPts') ? xnum(xkid(sp, 'spcPts'), 'val') / 100 : 0;
+    const bef = first(ch, e => xkid(e, 'spcBef'));
+    const runs = [];
+    for (const r of xkids(p)) {
+      if (r.localName === 'r' || r.localName === 'fld') runs.push({ t: /slidenum/i.test(r.getAttribute('type') || '') ? String(S.num) : xkid(r, 't')?.textContent ?? '', st: runStyle(xkid(r, 'rPr'), ch) });
+      else if (r.localName === 'br') runs.push({ br: true, st: runStyle(xkid(r, 'rPr'), ch) });
+    }
+    const endSt = runStyle(xkid(p, 'endParaRPr'), ch), hasText = runs.some(r => r.t?.trim());
+    const bu = first(ch, e => xkid(e, 'buNone') ? 'none' : xkid(e, 'buChar') ? xkid(e, 'buChar').getAttribute('char') : xkid(e, 'buAutoNum') ? 'num' : null);
+    counters[lvl] = bu === 'num' && hasText ? (counters[lvl] || 0) + 1 : 0;
+    let bullet = hasText && bu && bu !== 'none' ? (bu === 'num' ? `${counters[lvl]}.` : bu) : '';
+    if (bullet && /Wingdings/i.test(first(ch, e => xkid(e, 'buFont')?.getAttribute('typeface')) || '')) bullet = WINGDINGS[bullet] || '•';
+    const pctBef = bef && xkid(bef, 'spcPct') ? xnum(xkid(bef, 'spcPct'), 'val') / 1e5 * (runs[0]?.st.size || endSt.size) : 0;
+    const before = lines.length ? (bef && xkid(bef, 'spcPts') ? xnum(xkid(bef, 'spcPts'), 'val') / 100 : pctBef) : 0;
+    const textX = bullet ? marL : marL + indent;
+    let line = null;
+    const open = firstLine => { line = { segs: [], w: 0, size: 0, x: firstLine ? textX : marL, algn, before: firstLine ? before : 0, spc, spcPts, bullet: firstLine ? bullet : '', bulletSt: runs.find(r => r.t)?.st || endSt, bulletX: marL + indent, cont: !firstLine }; lines.push(line); };
+    open(true);
+    for (const run of runs) {
+      if (run.br) { line.size ||= run.st.size; open(false); continue; }
+      ctx.font = run.st.font;
+      for (const tok of run.t.split(/(\s+)/)) {
+        if (!tok) continue;
+        const w = ctx.measureText(tok).width, space = /^\s+$/.test(tok);
+        if (wrap && !space && line.segs.length && line.x + line.w + w > maxW) open(false);
+        if (space && !line.segs.length && line.cont) continue; // no leading space on wrapped lines
+        line.segs.push({ t: tok, st: run.st, x: line.w, w });
+        line.w += w;
+        line.size = Math.max(line.size, run.st.size);
+      }
+    }
+    if (!line.size) line.size = endSt.size;
+  }
+  const lh = l => (l.spcPts || l.size * 1.2 * l.spc * (1 - lnRed));
+  const total = lines.reduce((s, l) => s + l.before + lh(l), 0);
+  if (dry) return total + T + B;
+  let y = anchor === 'ctr' ? b.y + T + (b.h - T - B - total) / 2 : anchor === 'b' ? b.y + b.h - B - total : b.y + T;
+  ctx.textBaseline = 'alphabetic';
+  for (const l of lines) {
+    y += l.before;
+    const base = y + l.size * (.9 + (Math.min(l.spc, 1.5) - 1) * .5), free = maxW - l.x - l.w;
+    const x0 = b.x + L + l.x + (l.algn === 'ctr' ? free / 2 : l.algn === 'r' ? free : 0);
+    if (l.bullet) { ctx.font = l.bulletSt.font; ctx.fillStyle = l.bulletSt.color; ctx.fillText(l.bullet, b.x + L + l.bulletX, base); }
+    for (const s of l.segs) {
+      ctx.font = s.st.font; ctx.fillStyle = s.st.color;
+      ctx.fillText(s.t, x0 + s.x, base);
+      if (s.st.under) ctx.fillRect(x0 + s.x, base + s.st.size * .1, s.w, Math.max(.5, s.st.size * .06));
+    }
+    y += lh(l);
+  }
+}
+function pptTable(ctx, tbl, b, S) {
+  const cols = xkids(xkid(tbl, 'tblGrid'), 'gridCol').map(c => xnum(c, 'w') / PT), pr = xkid(tbl, 'tblPr');
+  const styled = !!xkid(pr, 'tableStyleId'), header = styled && pr.getAttribute('firstRow') === '1', band = styled && pr.getAttribute('bandRow') === '1', accent = S.scheme('accent1');
+  const chain = lvl => [xkid(S.pres.root, 'defaultTextStyle', `lvl${lvl + 1}pPr`)];
+  const ins = tcPr => ({ L: xnum(tcPr, 'marL', 91440) / PT, R: xnum(tcPr, 'marR', 91440) / PT, T: xnum(tcPr, 'marT', 45720) / PT, B: xnum(tcPr, 'marB', 45720) / PT });
+  let y = b.y;
+  xkids(tbl, 'tr').forEach((tr, ri) => {
+    const cells = [];
+    let x = b.x, ci = 0;
+    for (const tc of xkids(tr, 'tc')) {
+      const span = xnum(tc, 'gridSpan', 1), w = cols.slice(ci, ci + span).reduce((a, c) => a + c, 0);
+      if (!tc.hasAttribute('hMerge') && !tc.hasAttribute('vMerge')) cells.push({ tc, tcPr: xkid(tc, 'tcPr'), x, w });
+      x += w; ci += span;
+    }
+    // a row is at least as tall as its text needs (h="0" means "fit the text")
+    const h = Math.max(xnum(tr, 'h') / PT, ...cells.map(c => xkid(c.tc, 'txBody') ? pptText(ctx, xkid(c.tc, 'txBody'), { x: c.x, y, w: c.w, h: 0 }, S, { chain, ins: ins(c.tcPr), dry: true }) : 0));
+    for (const { tc, tcPr, x, w } of cells) {
+      const head = header && ri === 0, own = xkids(tcPr).some(c => /Fill$/.test(c.localName)) ? pptFill(tcPr, S) : undefined;
+      // without its own fill a cell takes PowerPoint's default table look: an accent header and banded rows
+      const fill = own !== undefined ? own : !styled ? null : head ? `#${accent}` : band && (ri - header) % 2 === 0 ? `#${accent}33` : `#${accent}1a`;
+      if (typeof fill === 'string') { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); }
+      for (const [k, x1, y1, x2, y2] of [['lnT', x, y, x + w, y], ['lnB', x, y + h, x + w, y + h], ['lnL', x, y, x, y + h], ['lnR', x + w, y, x + w, y + h]]) {
+        const ln = xkid(tcPr, k), color = ln ? (xkid(ln, 'solidFill') ? pptColor(xkid(ln, 'solidFill'), S) : null) : styled ? 'rgba(255,255,255,.9)' : null;
+        if (!color) continue;
+        ctx.strokeStyle = color; ctx.lineWidth = ln ? xnum(ln, 'w', 12700) / PT : 1;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+      const tx = xkid(tc, 'txBody');
+      if (tx) pptText(ctx, tx, { x, y, w, h }, S, { chain, ins: ins(tcPr), color: head && own === undefined ? '#fff' : null, anchor: tcPr?.getAttribute('anchor') });
+    }
+    y += h;
+  });
+}
+// The placeholder this one inherits from on the layout, then the master.
+function pptInherit(S, ph) {
+  const type = ph.getAttribute('type') || 'body', idx = ph.getAttribute('idx'), up = e => e.parentElement.parentElement.parentElement;
+  const find = (part, byIdx) => {
+    const all = [...(part?.root.getElementsByTagNameNS('*', 'ph') || [])];
+    const norm = t => ({ ctrTitle: 'title', subTitle: 'body', obj: 'body' })[t] || t;
+    const hit = (byIdx && idx != null && all.find(p => p.getAttribute('idx') === idx)) || all.find(p => (p.getAttribute('type') || 'body') === type) || all.find(p => norm(p.getAttribute('type') || 'body') === norm(type));
+    return hit && up(hit);
+  };
+  return [find(S.layout, true), find(S.master, false)].filter(Boolean);
+}
+async function pptShape(ctx, el, part, S) {
+  const ph = xdeep(el.firstElementChild, 'ph'), inh = ph ? pptInherit(S, ph) : [], spPr = xkid(el, 'spPr'), style = xkid(el, 'style');
+  const xfrm = el.localName === 'graphicFrame' ? xkid(el, 'xfrm') : first([el, ...inh], s => xkid(s, 'spPr', 'xfrm'));
+  if (!xfrm) return;
+  const off = xkid(xfrm, 'off'), ext = xkid(xfrm, 'ext'), b = { x: xnum(off, 'x') / PT, y: xnum(off, 'y') / PT, w: xnum(ext, 'cx') / PT, h: xnum(ext, 'cy') / PT };
+  ctx.save();
+  const rot = xnum(xfrm, 'rot') / 60000, fh = xfrm.getAttribute('flipH') === '1', fv = xfrm.getAttribute('flipV') === '1';
+  if (rot || fh || fv) { ctx.translate(b.x + b.w / 2, b.y + b.h / 2); ctx.rotate(rot * Math.PI / 180); ctx.scale(fh ? -1 : 1, fv ? -1 : 1); ctx.translate(-b.x - b.w / 2, -b.y - b.h / 2); }
+  if (el.localName === 'pic') await pptDrawImage(ctx, S, part, { blip: xdeep(el, 'blip')?.getAttribute('r:embed'), src: xdeep(xkid(el, 'blipFill'), 'srcRect') }, b);
+  else if (el.localName === 'graphicFrame') { const tbl = xdeep(el, 'tbl'); if (tbl) pptTable(ctx, tbl, b, S); }
+  else {
+    const closed = pptPath(ctx, spPr, b), fill = closed && pptFill(spPr, S, xkid(style, 'fillRef'));
+    if (typeof fill === 'string') { ctx.fillStyle = fill; ctx.fill(); }
+    else if (fill?.blip) { ctx.save(); ctx.clip(); await pptDrawImage(ctx, S, part, fill, b); ctx.restore(); pptPath(ctx, spPr, b); }
+    const ln = xkid(spPr, 'ln'), lnRef = xkid(style, 'lnRef');
+    const stroke = ln && xkid(ln, 'noFill') ? null : (ln && xkid(ln, 'solidFill') ? pptColor(xkid(ln, 'solidFill'), S) : xnum(lnRef, 'idx') ? pptColor(lnRef, S) : null);
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = xnum(ln, 'w', 9525) / PT; ctx.stroke(); }
+    const tx = xkid(el, 'txBody'), type = ph?.getAttribute('type') || '', title = /title/i.test(type) && type !== 'subTitle';
+    if (tx) pptText(ctx, tx, b, S, {
+      title, color: pptColor(xkid(style, 'fontRef'), S), bodies: inh.map(s => xkid(s, 'txBody', 'bodyPr')),
+      chain: lvl => { const k = `lvl${lvl + 1}pPr`; return [...[el, ...inh].map(s => xkid(s, 'txBody', 'lstStyle', k)), ph ? xkid(S.master.root, 'txStyles', title ? 'titleStyle' : type && type !== 'body' && type !== 'obj' && type !== 'subTitle' ? 'otherStyle' : 'bodyStyle', k) : xkid(S.pres.root, 'defaultTextStyle', k)]; },
+    });
+  }
+  ctx.restore();
+}
+async function pptTree(ctx, tree, part, S, template) {
+  for (const el of xkids(tree)) {
+    const n = el.localName;
+    if (n === 'grpSp') {
+      const x = xkid(el, 'grpSpPr', 'xfrm'), [o, e, co, ce] = ['off', 'ext', 'chOff', 'chExt'].map(k => xkid(x, k));
+      ctx.save();
+      if (x) { ctx.translate(xnum(o, 'x') / PT, xnum(o, 'y') / PT); ctx.scale(xnum(e, 'cx', 1) / (xnum(ce, 'cx') || xnum(e, 'cx', 1)), xnum(e, 'cy', 1) / (xnum(ce, 'cy') || xnum(e, 'cy', 1))); ctx.translate(-xnum(co, 'x') / PT, -xnum(co, 'y') / PT); }
+      await pptTree(ctx, el, part, S, template);
+      ctx.restore();
+    } else if (['sp', 'pic', 'cxnSp', 'graphicFrame'].includes(n)) {
+      if (template && xdeep(el.firstElementChild, 'ph')) continue; // a layout's empty placeholders are prompts, not content
+      try { await pptShape(ctx, el, part, S); } catch (e) { console.warn('Skipped a shape it could not draw', e); }
+    }
+  }
+}
+// Calls onSlide(canvas, widthPt, heightPt, n, total) for each slide that's shown; returns how many there were.
+async function pptxSlides(file, onSlide) {
+  await need('jszip');
+  const zip = await JSZip.loadAsync(await file.arrayBuffer()).catch(() => { throw new UserError(`${file.name} isn't a PowerPoint file Nebula can read. Save it as .pptx and try again.`); });
+  const cache = {}, parse = async f => new DOMParser().parseFromString(await f.async('text'), 'application/xml');
+  const part = p => p ? cache[p] ??= (async () => {
+    const f = zip.file(p);
+    if (!f) return null;
+    const doc = await parse(f), rf = zip.file(p.replace(/([^/]+)$/, '_rels/$1.rels')), rels = {};
+    if (rf) for (const r of (await parse(rf)).documentElement.children) if (r.getAttribute('TargetMode') !== 'External') rels[r.getAttribute('Id')] = zipPath(p.replace(/[^/]+$/, ''), r.getAttribute('Target'));
+    return { root: doc.documentElement, rels, rel: re => Object.values(rels).find(t => re.test(t)) };
+  })() : Promise.resolve(null);
+  const pres = await part('ppt/presentation.xml');
+  if (!pres) throw new UserError(`${file.name} isn't a PowerPoint presentation.`);
+  const sz = xdeep(pres.root, 'sldSz'), W = xnum(sz, 'cx', 9144000) / PT, H = xnum(sz, 'cy', 6858000) / PT;
+  const paths = xkids(xdeep(pres.root, 'sldIdLst'), 'sldId').map(s => pres.rels[s.getAttribute('r:id')]).filter(Boolean);
+  const K = Math.min(2, 4000 / Math.max(W, H)), imgs = {};
+  let shown = 0;
+  for (const [i, p] of paths.entries()) {
+    const slide = await part(p);
+    if (!slide || slide.root.getAttribute('show') === '0') continue; // hidden slides stay out, as in PowerPoint's own export
+    const layout = await part(slide.rel(/slideLayouts\//)), master = await part(layout?.rel(/slideMasters\//)), theme = await part(master?.rel(/theme\//));
+    const clrMap = xkid(master?.root, 'clrMap'), scheme = xdeep(theme?.root, 'clrScheme'), fontScheme = xdeep(theme?.root, 'fontScheme');
+    const S = { zip, imgs, pres, layout, master, num: i + 1,
+      fonts: { major: xkid(fontScheme, 'majorFont', 'latin')?.getAttribute('typeface') || 'Calibri Light', minor: xkid(fontScheme, 'minorFont', 'latin')?.getAttribute('typeface') || 'Calibri' },
+      scheme: name => { const k = clrMap?.getAttribute(name) || name, e = xkid(scheme, k); return xkid(e, 'srgbClr')?.getAttribute('val') || xkid(e, 'sysClr')?.getAttribute('lastClr') || (/^(lt|bg)/.test(k) ? 'FFFFFF' : '000000'); } };
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(W * K), height: Math.round(H * K) }), ctx = c.getContext('2d');
+    ctx.scale(K, K);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    for (const pt of [slide, layout, master]) {
+      const bg = xkid(pt?.root, 'cSld', 'bg');
+      if (!bg) continue;
+      const fill = xkid(bg, 'bgPr') ? pptFill(xkid(bg, 'bgPr'), S) : pptFill(null, S, xkid(bg, 'bgRef'));
+      if (typeof fill === 'string') { ctx.fillStyle = fill; ctx.fillRect(0, 0, W, H); }
+      else if (fill?.blip) await pptDrawImage(ctx, S, pt, fill, { x: 0, y: 0, w: W, h: H });
+      break;
+    }
+    if (slide.root.getAttribute('showMasterSp') !== '0') {
+      if (master && layout?.root.getAttribute('showMasterSp') !== '0') await pptTree(ctx, xkid(master.root, 'cSld', 'spTree'), master, S, true);
+      if (layout) await pptTree(ctx, xkid(layout.root, 'cSld', 'spTree'), layout, S, true);
+    }
+    await pptTree(ctx, xkid(slide.root, 'cSld', 'spTree'), slide, S, false);
+    await onSlide(c, W, H, ++shown, paths.length);
+  }
+  return shown;
+}
+TOOLS.ppt2pdf = {
+  group: 'to', name: 'PowerPoint to PDF', icon: 'presentation', keys: 'pptx slides presentation deck powerpoint keynote',
+  desc: 'Turn .pptx slides into PDF pages, with their text, shapes, pictures and tables. Charts and animations are left out.',
+  accept: '.pptx', drop: 'Drop PowerPoint files here', note: '.pptx files (PowerPoint 2007 or newer). Add several to convert them all.', batch: true,
+  btn: 'Convert to PDF', libs: ['jszip', 'pdflib'],
+  async run([f]) {
+    const out = await PDFLib.PDFDocument.create();
+    const n = await pptxSlides(f, async (c, W, H, i, total) => {
+      progress(`Slide ${i} of ${total}`, i / total);
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
+      await addImagePage(out, { bytes: await blob.arrayBuffer(), w: W, h: H });
+    });
+    if (!n) throw new UserError('This presentation has no slides to show.');
+    save(await out.save(), `${stem(f)}.pdf`);
+    return `Converted ${plural(n, 'slide')}`;
+  },
+};
+SUGGEST.pptx = ['ppt2pdf'];
