@@ -23,28 +23,30 @@ async function cloudReady() {
 const ENGINE = `<div class="engine" id="o-engine-box">
   <div class="seg" role="group" aria-label="Where the AI runs" id="o-engine">
     <button type="button" class="seg-btn" data-k="device" onclick="pickEngine(this)">${icon('shield-check')}On this device</button>
-    <button type="button" class="seg-btn" data-k="cloud" onclick="pickEngine(this)">${icon('ai')}Claude (cloud)</button>
+    <button type="button" class="seg-btn" data-k="cloud" onclick="pickEngine(this)">${icon('ai')}Claude (cloud)<span class="soon"><span class="soon-w">Coming </span>soon</span></button>
   </div><p class="hint engine-note" id="o-engine-note"></p></div>`;
 function pickEngine(btn) { store2.set('nebula-ai', btn.dataset.k); refreshEngine(); }
 async function refreshEngine(onlyCloud) {
   const box = $('o-engine');
   if (!box) return;
   const t = TOOLS[currentTool], [gpu, cloud] = await Promise.all([hasWebGPU(), cloudReady()]);
-  const choice = onlyCloud ? 'cloud' : enginePref();
+  const choice = onlyCloud ? 'cloud' : cloud ? enginePref() : 'device'; // no key on the server yet: Claude shows "Coming soon"
   box.querySelectorAll('[data-k]').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === choice));
+  const cb = box.querySelector('[data-k=cloud]');
+  cb.disabled = !cloud; cb.classList.toggle('is-soon', !cloud); cb.title = cloud ? '' : 'Claude (cloud) is coming soon';
   box.querySelector('[data-k=device]').classList.toggle('hidden', !!onlyCloud);
   const notes = {
     device: t.localNote || (gpu ? 'Private: nothing leaves your device. Runs Qwen 3.5, an open-source model, in your browser. The first time it downloads about 1.1 GB, then works offline.'
-      : 'This browser can’t run the on-device model: it needs WebGPU (desktop Chrome or Edge, or Safari 26). Switch to Claude, or open Nebula in one of those browsers.'),
+      : `This browser can’t run the on-device model yet. It needs WebGPU, which desktop Chrome, Edge and Safari 26 have.${cloud ? ' Or switch to Claude.' : ''}`),
     cloud: cloud ? `Sends ${t.cloudSends || 'the document’s text'} to Anthropic’s Claude for better, faster answers. Nebula itself doesn’t keep it.`
-      : 'Claude isn’t set up on this site yet (the owner needs to add an API key). Use the on-device model instead.',
+      : 'Claude in the cloud is coming soon. For now, this runs privately on your device.',
   };
   $('o-engine-note').textContent = notes[choice];
   $('o-engine-note').classList.toggle('warn', (choice === 'device' && !gpu && !t.localNote) || (choice === 'cloud' && !cloud));
   const note = document.querySelector('.local-note');
   if (note) note.lastChild.textContent = choice === 'cloud' ? 'Sent to Claude to process. Not stored by Nebula.' : 'Processed on this device. Nothing is uploaded.';
 }
-const useCloud = () => enginePref() === 'cloud' || TOOLS[currentTool]?.cloudOnly;
+const useCloud = () => !!AI.cloud && (enginePref() === 'cloud' || !!TOOLS[currentTool]?.cloudOnly);
 
 /* ---------- Claude, through /api/ai (server-sent events) ---------- */
 async function cloud(task, body, onText) {

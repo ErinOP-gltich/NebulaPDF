@@ -80,6 +80,7 @@ The image AI tools always run on the device with [transformers.js](https://huggi
 
 1. In the [Anthropic Console](https://console.anthropic.com/), create an API key, and set a monthly spend limit under Billing → Limits.
 2. In Vercel → your project → Settings → Environment Variables, add `ANTHROPIC_API_KEY` with that key, then redeploy.
+   Until the key is there, the Claude option in each AI tool shows “Coming soon” and the tools run on the device. It switches on by itself once the key is set.
 3. Optional: `ALLOWED_ORIGINS` (comma-separated) if the site is served from a domain other than `nebula-pdf.vercel.app`.
 
 Without the key the site works as before and the Claude switch says it isn't set up. The endpoint only runs Nebula's fixed tasks (it can't be used as a general chatbot), only answers the site's own pages, limits each visitor to 40 requests per 10 minutes, and caps document size (about 300,000 characters, or 8 images). Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens; a summary of a 20-page PDF is roughly 10,000 tokens in and 1,000 to 3,000 out (Claude's thinking counts as output), about 6 to 10 cents.
